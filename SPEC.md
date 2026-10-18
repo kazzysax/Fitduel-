@@ -11,6 +11,7 @@ Status: **draft for discussion**. Items marked **OPEN** still need a decision.
 | Topic | Decision |
 |---|---|
 | Platform | **Web app** (installable PWA) that works on iPhone, Android and desktop browsers |
+| Visuals | **3D.** Fighters and arena are modelled and animated in **Blender**, then rendered in the browser |
 | Push-up tracking | Counted by the **camera**, with pose detection running in the browser |
 | Fighter AI | Game AI that runs on our servers. Fights are deterministic and replayable from a seed (no language model controls moves) |
 | Duels | **Fully automatic and in the background.** Players get a result plus an automatic replay scene |
@@ -95,12 +96,26 @@ Exact weights get tuned in testing.
 
 ---
 
-## 5. Watching fights
-- Fights run on the server in milliseconds. The "scene" is a **replay** built from the stored seed and the fighters, so we never stream video.
-- Players get a notification ("Your fighter finished 3rd of 30, you won X"), then watch the animated replay with highlights: knockouts, comebacks, their fighter's best moments.
-- Art style for the first version: **OPEN O5**.
+## 5. Watching fights (3D)
+- Fights run on the server in milliseconds. The "scene" is a **3D replay** rebuilt in the browser from the stored seed and the fighters, so we never stream video.
+- Players get a notification ("Your fighter finished 3rd of 30, you won X"), then watch the replay with highlights: knockouts, comebacks, their fighter's best moments.
 
----
+### 5.1 3D pipeline
+```
+Blender (model, rig, animate) → export glTF/GLB → compress (Draco/meshopt + KTX2 textures)
+  → loaded by Three.js (React Three Fiber) in the web app → driven by the replay event stream
+```
+- **One shared base boxer** with one skeleton. Every fighter reuses it, which keeps the files small and lets all animations work on every fighter.
+- **Animation clips made in Blender:**
+  - Combat: idle/bounce, step, jab, hook, uppercut, guard, dodge, hit reaction, stagger, KO fall.
+  - Ceremony: ring entrance and victory pose.
+- **Arena:** a ring, ropes, lights and a crowd made of cheap cut-outs or instanced figures.
+- **Phone performance budget** (up to 30 fighters on screen):
+  - Low-poly fighters, about 5–10k triangles each, with simpler LOD models at a distance.
+  - Shared materials, and only fighters near the camera fully animated.
+  - The camera follows the action and the player's own fighter.
+- **Fighter looks show training.** Body build, gear and aura change with stats and rating, so you can see how hard someone trains.
+- **Customization:** skins, gloves, shorts, entrances and victory poses. This is also the main way to make money (O2).
 
 ## 6. Anti-cheat (critical, because money is at stake)
 - **Camera reps:** pose detection checks full range of motion, pace and body position. Only rep counts plus a signed check summary are sent; no video is uploaded.
@@ -133,7 +148,7 @@ Exact weights get tuned in testing.
  Payments: licensed payment / payout provider with ID checks and location rules
 ```
 
-- **Frontend:** React or Next.js, built as a PWA. Pose detection in the browser with MediaPipe or TensorFlow.js.
+- **Frontend:** React or Next.js, built as a PWA, with Three.js (React Three Fiber) for 3D. Pose detection in the browser with MediaPipe or TensorFlow.js.
 - **Backend:** TypeScript on Node.js, Postgres, Redis.
 - **Simulation:** a pure, seeded engine. One ring of 30 fighters takes milliseconds, so **one server can run thousands of Rumbles**.
   - Replays are stored as `{seed, fighter snapshots}`, only a few KB each.
@@ -161,7 +176,7 @@ Exact weights get tuned in testing.
 
 | Phase | Scope |
 |---|---|
-| **0. Prototype** | Stats engine, Rumble simulation, simple replay viewer, fake data |
+| **0. Prototype** | Stats engine, Rumble simulation, basic 3D replay with a placeholder Blender boxer, fake data |
 | **1. MVP (free)** | Web app, accounts, camera push-up and squat counter, step sync, daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
 | **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
@@ -183,4 +198,4 @@ Exact weights get tuned in testing.
   - Payment processing fees (~2–3%) still need to be covered by someone.
 - **O3. Exact payout curve** (proposed: top 20% paid, sliding scale) and entry stake tiers.
 - **O4. Minimum and maximum fighters per Rumble,** and what happens if a Rumble doesn't fill.
-- **O5. Visual style** of fighters and replays (2D cartoon, 3D, stylised).
+- **O5. 3D art direction:** realistic, stylised or cartoon? Who makes the Blender models: you, an artist, or placeholders to start?
