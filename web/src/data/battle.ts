@@ -1,29 +1,11 @@
-// Battleground data for the prototype: divisions, arenas, matchmaking against
-// generated champions, and the schedule of Rumbles.
+// Battleground: arena looks per division, and the server calls for fights, Rumbles,
+// the leaderboard and notifications.
 
-import { makeFakeField, type FakePlayer } from "../../../engine/fakeData.ts";
-import { simulateRumble } from "../../../engine/rumble.ts";
-import type { Champ } from "./store.ts";
-import { today } from "./store.ts";
+import type { FakePlayer } from "../../../engine/fakeData.ts";
+import type { Equipped, VenueId } from "../../../engine/league.ts";
+import { api } from "./api.ts";
 
-export interface Division {
-  name: string;
-  min: number;
-  venue: VenueId;
-}
-
-export type VenueId = "garage" | "rooftop" | "city" | "colosseum";
-
-export const DIVISIONS: Division[] = [
-  { name: "Rookie", min: 0, venue: "garage" },
-  { name: "Contender", min: 45, venue: "rooftop" },
-  { name: "Pro", min: 60, venue: "city" },
-  { name: "Champion", min: 75, venue: "colosseum" },
-];
-
-export function divisionFor(rating: number): Division {
-  return [...DIVISIONS].reverse().find((d) => rating >= d.min)!;
-}
+export { DIVISIONS, divisionFor, type Division, type VenueId } from "../../../engine/league.ts";
 
 export interface Venue {
   name: string;
@@ -89,82 +71,72 @@ export const VENUES: Record<VenueId, Venue> = {
   },
 };
 
-export function champAsFighter(champ: Champ): FakePlayer {
-  return { id: "you", name: champ.name, archetype: "Your training", color: champ.color, stats: champ.stats, rating: champ.rating };
-}
+export type Fighter = FakePlayer & { equipped?: Equipped };
 
-// Matchmaking: the closest-rated champion from a pool in your division range.
-export function findOpponent(champ: Champ, seed: number): FakePlayer {
-  const pool = makeFakeField(seed, 40, today());
-  const sorted = pool
-    .map((p) => ({ p, gap: Math.abs(p.rating - champ.rating) }))
-    .sort((a, b) => a.gap - b.gap)
-    .slice(0, 5);
-  return sorted[seed % sorted.length].p;
-}
-
-export interface LiveDuel {
-  id: string;
+export interface Fight {
+  id: number;
+  mode: "duel" | "rumble";
   seed: number;
-  a: FakePlayer;
-  b: FakePlayer;
-  division: Division;
-  secondsIn: number; // how far into the fight it is right now
-  length: number; // fight length in seconds
-  viewers: number;
+  createdAt: string;
+  venue: VenueId;
+  title: string;
+  fighters: Fighter[];
+  entryCents: number;
 }
 
-// A rotating feed of other champions' duels. New ones start every few minutes.
-export function liveDuels(now = Date.now()): LiveDuel[] {
-  const slot = Math.floor(now / 60_000);
-  const out: LiveDuel[] = [];
-  for (let i = 0; i < 6; i++) {
-    const seed = (slot - i) * 7 + 1013;
-    // Pair the two closest-rated champions from a small pool, like real matchmaking.
-    const pool = makeFakeField(seed, 8, today()).sort((x, y) => x.rating - y.rating);
-    let pair = 0;
-    for (let k = 1; k < pool.length - 1; k++) if (pool[k + 1].rating - pool[k].rating < pool[pair + 1].rating - pool[pair].rating) pair = k;
-    const [a, b] = [pool[pair], pool[pair + 1]];
-    const length = simulateRumble([a, b], seed).ticks / 10;
-    out.push({
-      id: `duel-${seed}`,
-      seed,
-      a,
-      b,
-      division: divisionFor(Math.round((a.rating + b.rating) / 2)),
-      secondsIn: i * 60 + ((now / 1000) % 60),
-      length,
-      viewers: 40 + ((seed * 37) % 900),
-    });
-  }
-  return out;
+export interface LiveFight {
+  id: number;
+  mode: "duel" | "rumble";
+  title: string;
+  createdAt: string;
+  venue: VenueId;
+  fighters: number;
+  top: { name: string; color: string; rating: number }[];
 }
 
-export interface RumbleEvent {
-  id: string;
+export interface Rumble {
+  id: number;
   kind: "daily" | "weekly";
   title: string;
-  startsAt: Date;
+  startsAt: string;
   fieldSize: number;
   entryCents: number;
+  seedHash: string;
+  seed: number | null;
+  status: "open" | "done";
+  fightId: number | null;
   entered: number;
+  joined: boolean;
 }
 
-// Daily Rumble at 20:00 local time; weekly final on Sunday at 19:00.
-export function upcomingRumbles(now = new Date()): RumbleEvent[] {
-  const daily = new Date(now);
-  daily.setHours(20, 0, 0, 0);
-  if (daily <= now) daily.setDate(daily.getDate() + 1);
-  const weekly = new Date(now);
-  weekly.setHours(19, 0, 0, 0);
-  weekly.setDate(weekly.getDate() + ((7 - weekly.getDay()) % 7));
-  if (weekly <= now) weekly.setDate(weekly.getDate() + 7);
-  const dayKey = Number(today().replaceAll("-", ""));
-  return [
-    { id: `daily-${dayKey}`, kind: "daily", title: "Daily Rumble", startsAt: daily, fieldSize: 30, entryCents: 500, entered: 18 + (dayKey % 9) },
-    { id: `weekly-${dayKey}`, kind: "weekly", title: "Weekly Grand Rumble", startsAt: weekly, fieldSize: 30, entryCents: 2500, entered: 11 + (dayKey % 13) },
-  ];
+export interface LeaderRow {
+  rank: number;
+  name: string;
+  color: string;
+  rating: number;
+  division: string;
+  duelWins: number;
+  duels: number;
+  me: boolean;
 }
+
+export interface Notification {
+  id: number;
+  createdAt: string;
+  kind: string;
+  body: string;
+  fightId: number | null;
+  read: number;
+}
+
+export const startDuel = () => api<{ fightId: number }>("/duels", { body: {} });
+export const fetchFight = (id: number) => api<Fight>(`/fights/${id}`);
+export const fetchLive = () => api<LiveFight[]>("/live");
+export const fetchRumbles = () => api<Rumble[]>("/rumbles");
+export const enterRumble = (id: number) => api(`/rumbles/${id}/enter`, { body: {} });
+export const leaveRumble = (id: number) => api(`/rumbles/${id}/leave`, { body: {} });
+export const fetchLeaderboard = () => api<LeaderRow[]>("/leaderboard");
+export const fetchNotifications = () => api<Notification[]>("/notifications");
 
 export function countdown(to: Date, now = new Date()): string {
   const s = Math.max(0, Math.floor((to.getTime() - now.getTime()) / 1000));
@@ -172,4 +144,12 @@ export function countdown(to: Date, now = new Date()): string {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+export function timeAgo(iso: string, now = Date.now()): string {
+  const s = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }

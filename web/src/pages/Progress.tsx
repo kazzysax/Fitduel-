@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { BarChart, LineChart, SERIES } from "../components/Charts.tsx";
-import { champOf, dayLog, daysAgo, GOALS, isActiveDay, streak, useProfile } from "../data/store.ts";
+import { champOf, dayLog, daysAgo, isActiveDay, useProfile } from "../data/store.ts";
 
 function shortLabel(date: string): string {
   return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -20,9 +20,7 @@ export function Progress() {
   const bestSteps = logs.reduce((b, l) => (l.steps > b.steps ? l : b), logs[0]);
   const ovrChange = ovr[ovr.length - 1].value - ovr[0].value;
 
-  // All-time bests over the stored history.
-  const all = Object.entries(profile.log);
-  const best = (k: "steps" | "pushups" | "squats") => all.reduce((b, [, l]) => Math.max(b, l[k]), 0);
+  const best = (k: "steps" | "pushups" | "squats") => profile.bests[k] ?? 0;
 
   return (
     <div className="page">
@@ -59,7 +57,7 @@ export function Progress() {
             {activeDays}
             <small>/{range}</small>
           </div>
-          <div className="note">{streak(profile)} day streak now</div>
+          <div className="note">{profile.streak.current} day streak now</div>
         </div>
         <div className="tile">
           <div className="label">Champ OVR</div>
@@ -75,14 +73,14 @@ export function Progress() {
         <p className="note">
           Best day: {bestSteps.steps.toLocaleString()} on {shortLabel(bestSteps.date)}
         </p>
-        <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.steps }))} color={SERIES.steps} goal={GOALS.steps} unit="steps" />
+        <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.steps }))} color={SERIES.steps} goal={profile.goals.steps} unit="steps" />
       </section>
 
       <div className="two-col">
         <section className="card">
           <h2>Reps per day</h2>
           <p className="note">Push-ups and squats combined</p>
-          <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.pushups + l.squats }))} color={SERIES.reps} goal={GOALS.reps} unit="reps" />
+          <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.pushups + l.squats }))} color={SERIES.reps} goal={profile.goals.reps} unit="reps" />
         </section>
         <section className="card">
           <h2>Champ rating (OVR)</h2>

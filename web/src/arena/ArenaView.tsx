@@ -8,7 +8,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three/addons/controls/O
 
 import type { FakePlayer } from "../../../engine/fakeData.ts";
 import { maxHpFor, simulateRumble, TICKS_PER_SECOND, type Frames, type RumbleResult } from "../../../engine/rumble.ts";
-import type { Venue } from "../data/battle.ts";
+import type { Fighter, Venue } from "../data/battle.ts";
 import { samplePose, type Playback } from "../replay.ts";
 import { Arena } from "../scene/Arena.tsx";
 import { BrickFighter } from "../scene/BrickFighter.tsx";
@@ -138,6 +138,7 @@ export function ArenaView(props: ArenaProps) {
             maxHp={maxHp[i]}
             name={p.name}
             isYou={i === youIndex}
+            equipped={(p as Fighter).equipped}
             selected={selected === i}
             onSelect={setSelected}
           />

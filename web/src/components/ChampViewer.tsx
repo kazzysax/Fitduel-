@@ -63,6 +63,7 @@ export function ChampViewer({ champ, interactive = false }: { champ: Champ; inte
             isYou={false}
             selected={false}
             hideBar
+            equipped={champ.equipped}
             onSelect={() => {}}
           />
         </group>

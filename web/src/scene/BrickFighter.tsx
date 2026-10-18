@@ -8,6 +8,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
+import type { Equipped } from "../../../engine/league.ts";
 import { Act, type Frames } from "../../../engine/rumble.ts";
 import { createRng } from "../../../engine/rng.ts";
 import { clampTick, frameIndex, samplePose, type Playback } from "../replay.ts";
@@ -24,6 +25,9 @@ const geo = {
   neck: new THREE.CylinderGeometry(0.07, 0.07, 0.06, 8),
   head: new RoundedBoxGeometry(0.3, 0.28, 0.28, 2, 0.06),
   headgear: new RoundedBoxGeometry(0.34, 0.11, 0.32, 2, 0.04),
+  band: new THREE.BoxGeometry(0.315, 0.05, 0.295),
+  crownBase: new THREE.BoxGeometry(0.3, 0.06, 0.28),
+  crownSpike: new THREE.BoxGeometry(0.06, 0.08, 0.06),
   eye: new THREE.BoxGeometry(0.05, 0.06, 0.02),
   mouth: new THREE.BoxGeometry(0.12, 0.025, 0.02),
   marker: new THREE.RingGeometry(0.42, 0.52, 32).rotateX(-Math.PI / 2),
@@ -33,6 +37,15 @@ const geo = {
 
 const plastic = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 });
 const SKINS = ["#f2c38f", "#d9a066", "#a86b3c", "#7a4a26", "#ffd9b3"].map(plastic);
+const gold = new THREE.MeshStandardMaterial({ color: "#ffc633", metalness: 0.85, roughness: 0.3 });
+// Unlockable gear (engine/league.ts). Looks only.
+const gearMat = {
+  gold,
+  band: plastic("#e63946"),
+  flame: new THREE.MeshStandardMaterial({ color: "#ff7a1a", emissive: "#ff3d00", emissiveIntensity: 0.6, roughness: 0.4 }),
+  chrome: new THREE.MeshStandardMaterial({ color: "#d9dee6", metalness: 1, roughness: 0.15 }),
+};
+
 const mat = {
   dark: plastic("#1d1f27"),
   pants: plastic("#30364a"),
@@ -100,10 +113,11 @@ interface Props {
   isYou: boolean;
   selected: boolean;
   hideBar?: boolean;
+  equipped?: Equipped;
   onSelect: (index: number) => void;
 }
 
-export function BrickFighter({ index, frames, playback, color, power, rating, maxHp, name, isYou, selected, hideBar, onSelect }: Props) {
+export function BrickFighter({ index, frames, playback, color, power, rating, maxHp, name, isYou, selected, hideBar, equipped = {}, onSelect }: Props) {
   const root = useRef<THREE.Group>(null!);
   const body = useRef<THREE.Group>(null!);
   const upper = useRef<THREE.Group>(null!);
@@ -121,6 +135,7 @@ export function BrickFighter({ index, frames, playback, color, power, rating, ma
   const colorMat = useMemo(() => plastic(color), [color]);
   const barMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#3ddc84" }), []);
   const skin = SKINS[index % SKINS.length];
+  const gloveMat = equipped.gloves === "flame-gloves" ? gearMat.flame : mat.gloves[gloveTier(power)];
 
   // Knockout burst: each chunk flies off with its own velocity and spin, then lands.
   const chunks = useMemo(() => {
@@ -249,23 +264,33 @@ export function BrickFighter({ index, frames, playback, color, power, rating, ma
         </group>
         <group ref={upper} position={[0, 0.5, 0]}>
           <group ref={torso}>
-            <mesh geometry={geo.torso} material={colorMat} castShadow />
+            <mesh geometry={geo.torso} material={equipped.torso === "chrome-torso" ? gearMat.chrome : colorMat} castShadow />
           </group>
           <group ref={head}>
             <mesh geometry={geo.neck} material={skin} position={[0, -0.16, 0]} />
             <mesh geometry={geo.head} material={skin} castShadow />
-            <mesh geometry={geo.headgear} material={colorMat} position={[0, 0.12, -0.01]} />
+            {!equipped.head && <mesh geometry={geo.headgear} material={colorMat} position={[0, 0.12, -0.01]} />}
+            {equipped.head === "gold-headgear" && <mesh geometry={geo.headgear} material={gearMat.gold} position={[0, 0.12, -0.01]} />}
+            {equipped.head === "sweatband" && <mesh geometry={geo.band} material={gearMat.band} position={[0, 0.07, 0]} />}
+            {equipped.head === "crown" && (
+              <group position={[0, 0.17, 0]}>
+                <mesh geometry={geo.crownBase} material={gearMat.gold} />
+                {[-0.1, 0, 0.1].map((x) => (
+                  <mesh key={x} geometry={geo.crownSpike} material={gearMat.gold} position={[x, 0.07, 0.1]} />
+                ))}
+              </group>
+            )}
             <mesh geometry={geo.eye} material={mat.dark} position={[0.065, 0.02, 0.141]} />
             <mesh geometry={geo.eye} material={mat.dark} position={[-0.065, 0.02, 0.141]} />
             <mesh geometry={geo.mouth} material={mat.dark} position={[0, -0.07, 0.141]} />
           </group>
           <group ref={armL} rotation-order="YXZ">
             <mesh geometry={geo.arm} material={colorMat} castShadow />
-            <mesh geometry={geo.glove} material={mat.gloves[gloveTier(power)]} castShadow />
+            <mesh geometry={geo.glove} material={gloveMat} castShadow />
           </group>
           <group ref={armR} rotation-order="YXZ">
             <mesh geometry={geo.arm} material={colorMat} castShadow />
-            <mesh geometry={geo.glove} material={mat.gloves[gloveTier(power)]} castShadow />
+            <mesh geometry={geo.glove} material={gloveMat} castShadow />
           </group>
         </group>
         <group ref={bar} position={[0, 1.55, 0]}>

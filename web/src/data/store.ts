@@ -1,159 +1,209 @@
-// Local prototype data store. Everything lives in this browser (localStorage) until
-// Phase 1 adds accounts and a backend; the shapes here are what the API will return.
+// App state loaded from the FitDuel server: your account, champion, training log,
+// workouts and fights. Pages read it with useProfile(); actions update the server and
+// then refresh.
 
 import { useSyncExternalStore } from "react";
 
-import { createRng } from "../../../engine/rng.ts";
+import type { Equipped } from "../../../engine/league.ts";
 import { computeStats, overallRating, WINDOW_DAYS, type ActivityDay, type FighterStats } from "../../../engine/stats.ts";
+import { api, getToken, localDate, setToken, setUnauthorizedHandler } from "./api.ts";
 
 export type DayLog = Omit<ActivityDay, "date">;
 
 export interface Workout {
-  id: string;
+  id: number;
   date: string;
-  time: string; // ISO timestamp
+  time: string;
   kind: "pushups" | "squats" | "steps" | "run" | "active";
   amount: number;
   source: "camera" | "manual" | "tracker";
+  flagged: string | null;
 }
 
-export interface FightRecord {
-  id: string;
-  time: string;
+export interface FightSummary {
+  id: number;
   mode: "duel" | "rumble";
-  seed: number;
-  opponentName: string; // duel opponent, or "29 fighters" for a Rumble
+  title: string;
+  createdAt: string;
   place: number;
   fieldSize: number;
-  won: boolean;
+  won: number;
   payoutCents: number;
 }
 
+export interface Goals {
+  steps: number;
+  reps: number;
+  activeMinutes: number;
+}
+
+interface Me {
+  email: string;
+  createdAt: string;
+  goals: Goals;
+  onboarded: boolean;
+  champ: { id: string; name: string; color: string; equipped: Equipped; stats: FighterStats; rating: number; division: string };
+  streak: { current: number; best: number };
+  record: { duels: number; duelWins: number; rumbles: number; rumbleWins: number; bestRumblePlace: number | null; practiceWinningsCents: number };
+  unlocked: string[];
+  unread: number;
+}
+
 export interface Profile {
-  version: 1;
+  email: string;
+  champId: string;
   champName: string;
   color: string;
+  equipped: Equipped;
+  goals: Goals;
+  onboarded: boolean;
+  streak: { current: number; best: number };
+  record: Me["record"];
+  unlocked: string[];
+  unread: number;
   log: Record<string, DayLog>;
   workouts: Workout[];
-  fights: FightRecord[];
+  bests: { steps: number | null; pushups: number | null; squats: number | null };
+  fights: FightSummary[];
 }
 
-export const GOALS = { steps: 8000, reps: 60, activeMinutes: 30 };
+export type Session = { status: "loading" } | { status: "signedOut" } | { status: "error"; message: string } | { status: "ready"; profile: Profile };
 
-const KEY = "fitduel.profile.v1";
-const EMPTY_DAY: DayLog = { steps: 0, pushups: 0, squats: 0, activeMinutes: 0, runKm: 0 };
+const HISTORY_DAYS = WINDOW_DAYS * 2; // enough to chart the champ's rating over 28 days
 
-export function isoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-export function today(): string {
-  return isoDate(new Date());
-}
-
-export function daysAgo(n: number, from = today()): string {
-  const d = new Date(`${from}T12:00:00`);
-  d.setDate(d.getDate() - n);
-  return isoDate(d);
-}
-
-// A believable few weeks of history so a new visitor sees a lived-in app.
-function sampleProfile(): Profile {
-  const rng = createRng(4242);
-  const log: Record<string, DayLog> = {};
-  for (let age = 1; age < WINDOW_DAYS; age++) {
-    const active = rng() < 0.7;
-    log[daysAgo(age)] = active
-      ? {
-          steps: Math.round(6000 + rng() * 6000),
-          pushups: Math.round(15 + rng() * 25),
-          squats: Math.round(15 + rng() * 30),
-          activeMinutes: Math.round(20 + rng() * 30),
-          runKm: rng() < 0.3 ? Math.round((2 + rng() * 3) * 10) / 10 : 0,
-        }
-      : { steps: Math.round(2500 + rng() * 2500), pushups: 0, squats: 0, activeMinutes: Math.round(rng() * 10), runKm: 0 };
-  }
-  log[today()] = { steps: 3420, pushups: 0, squats: 0, activeMinutes: 8, runKm: 0 };
-  return { version: 1, champName: "Brickbreaker", color: "#ffd60a", log, workouts: [], fights: [] };
-}
-
-function load(): Profile {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Profile;
-      if (p.version === 1) return p;
-    }
-  } catch {
-    // Storage unavailable (private mode, blocked): fall back to sample data.
-  }
-  return sampleProfile();
-}
-
-let profile: Profile = load();
+let session: Session = { status: "loading" };
 const listeners = new Set<() => void>();
 
-function save(next: Profile): void {
-  profile = next;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    // Not persisted; the app still works for this visit.
-  }
+function set(next: Session): void {
+  session = next;
   listeners.forEach((l) => l());
 }
 
-export function useProfile(): Profile {
+setUnauthorizedHandler(() => {
+  setToken(null);
+  set({ status: "signedOut" });
+});
+
+export async function refresh(): Promise<void> {
+  try {
+    const [me, activity, fights] = await Promise.all([
+      api<Me>("/me"),
+      api<{ log: Record<string, DayLog>; workouts: Workout[]; bests: Profile["bests"] }>(`/activity?days=${HISTORY_DAYS}`),
+      api<FightSummary[]>("/fights/mine"),
+    ]);
+    set({
+      status: "ready",
+      profile: {
+        email: me.email,
+        champId: me.champ.id,
+        champName: me.champ.name,
+        color: me.champ.color,
+        equipped: me.champ.equipped,
+        goals: me.goals,
+        onboarded: me.onboarded,
+        streak: me.streak,
+        record: me.record,
+        unlocked: me.unlocked,
+        unread: me.unread,
+        log: activity.log,
+        workouts: activity.workouts,
+        bests: activity.bests,
+        fights,
+      },
+    });
+  } catch (e) {
+    if (session.status !== "signedOut") set({ status: "error", message: (e as Error).message });
+  }
+}
+
+export async function boot(): Promise<void> {
+  if (!getToken()) return set({ status: "signedOut" });
+  await refresh();
+}
+
+export function useSession(): Session {
   return useSyncExternalStore(
     (l) => {
       listeners.add(l);
       return () => listeners.delete(l);
     },
-    () => profile,
+    () => session,
   );
 }
 
-export function dayLog(p: Profile, date: string): DayLog {
+// Pages below the sign-in gate can rely on a loaded profile.
+export function useProfile(): Profile {
+  const s = useSession();
+  if (s.status !== "ready") throw new Error("Profile not loaded");
+  return s.profile;
+}
+
+// ───── Actions ─────
+
+export async function signUp(email: string, password: string, champName: string, color: string): Promise<void> {
+  const { token } = await api<{ token: string }>("/auth/signup", { body: { email, password, champName, color } });
+  setToken(token);
+  await refresh();
+}
+
+export async function logIn(email: string, password: string): Promise<void> {
+  const { token } = await api<{ token: string }>("/auth/login", { body: { email, password } });
+  setToken(token);
+  await refresh();
+}
+
+export async function logOut(): Promise<void> {
+  await api("/auth/logout", { body: {} }).catch(() => {});
+  setToken(null);
+  set({ status: "signedOut" });
+}
+
+export async function deleteAccount(password: string): Promise<void> {
+  await api("/me", { method: "DELETE", body: { password } });
+  setToken(null);
+  set({ status: "signedOut" });
+}
+
+export async function logWorkout(kind: Workout["kind"], amount: number, source: Workout["source"], durationSec?: number): Promise<{ flagged: string | null }> {
+  const res = await api<{ flagged: string | null }>("/workouts", { body: { kind, amount, source, durationSec } });
+  await refresh();
+  return res;
+}
+
+export async function updateChamp(changes: { name?: string; color?: string; equipped?: Equipped }): Promise<void> {
+  await api("/champ", { method: "PUT", body: changes });
+  await refresh();
+}
+
+export async function updateMe(changes: { goals?: Goals; onboarded?: boolean }): Promise<void> {
+  await api("/me", { method: "PUT", body: changes });
+  await refresh();
+}
+
+export async function markNotificationsRead(): Promise<void> {
+  await api("/notifications/read", { body: {} });
+  await refresh();
+}
+
+// ───── Derived values ─────
+
+export function today(): string {
+  return localDate();
+}
+
+export function daysAgo(n: number, from = today()): string {
+  const d = new Date(`${from}T12:00:00`);
+  d.setDate(d.getDate() - n);
+  return localDate(d);
+}
+
+const EMPTY_DAY: DayLog = { steps: 0, pushups: 0, squats: 0, activeMinutes: 0, runKm: 0 };
+
+export function dayLog(p: Pick<Profile, "log">, date: string): DayLog {
   return p.log[date] ?? EMPTY_DAY;
 }
 
-const FIELD_FOR: Record<Workout["kind"], keyof DayLog> = {
-  pushups: "pushups",
-  squats: "squats",
-  steps: "steps",
-  run: "runKm",
-  active: "activeMinutes",
-};
-
-export function logWorkout(kind: Workout["kind"], amount: number, source: Workout["source"]): void {
-  if (!(amount > 0)) return;
-  const date = today();
-  const day = { ...dayLog(profile, date) };
-  const field = FIELD_FOR[kind];
-  day[field] = Math.round((day[field] + amount) * 10) / 10;
-  // Rep sets also count as active time (about 3 seconds a rep).
-  if (kind === "pushups" || kind === "squats") day.activeMinutes += Math.round((amount * 3) / 60);
-  const workout: Workout = { id: crypto.randomUUID(), date, time: new Date().toISOString(), kind, amount, source };
-  save({ ...profile, log: { ...profile.log, [date]: day }, workouts: [workout, ...profile.workouts].slice(0, 200) });
-}
-
-export function recordFight(f: Omit<FightRecord, "id" | "time">): void {
-  const rec: FightRecord = { ...f, id: crypto.randomUUID(), time: new Date().toISOString() };
-  save({ ...profile, fights: [rec, ...profile.fights].slice(0, 100) });
-}
-
-export function updateChamp(changes: Partial<Pick<Profile, "champName" | "color">>): void {
-  save({ ...profile, ...changes });
-}
-
-export function resetProfile(): void {
-  save(sampleProfile());
-}
-
-export function history(p: Profile, asOf = today()): ActivityDay[] {
+export function history(p: Pick<Profile, "log">, asOf = today()): ActivityDay[] {
   return Array.from({ length: WINDOW_DAYS }, (_, age) => {
     const date = daysAgo(age, asOf);
     return { date, ...dayLog(p, date) };
@@ -161,28 +211,20 @@ export function history(p: Profile, asOf = today()): ActivityDay[] {
 }
 
 export interface Champ {
+  id: string;
   name: string;
   color: string;
+  equipped: Equipped;
   stats: FighterStats;
   rating: number;
 }
 
+// Same formula as the server, so charts of past days match what the server computes.
 export function champOf(p: Profile, asOf = today()): Champ {
   const stats = computeStats(history(p, asOf), asOf);
-  return { name: p.champName, color: p.color, stats, rating: overallRating(stats) };
+  return { id: p.champId, name: p.champName, color: p.color, equipped: p.equipped, stats, rating: overallRating(stats) };
 }
 
 export function isActiveDay(d: DayLog): boolean {
   return d.steps >= 5000 || d.pushups >= 10 || d.activeMinutes >= 20;
-}
-
-// Consecutive active days ending today (or yesterday, if today isn't done yet).
-export function streak(p: Profile): number {
-  let n = 0;
-  let age = isActiveDay(dayLog(p, today())) ? 0 : 1;
-  while (isActiveDay(dayLog(p, daysAgo(age)))) {
-    n++;
-    age++;
-  }
-  return n;
 }

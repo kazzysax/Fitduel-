@@ -32,7 +32,7 @@ async function createDetector(): Promise<{ detector: Detector; connections: { st
   return { detector, connections: PoseLandmarker.POSE_CONNECTIONS };
 }
 
-export function PoseCounter({ exercise, onFinish, onCancel }: { exercise: Exercise; onFinish: (reps: number) => void; onCancel: () => void }) {
+export function PoseCounter({ exercise, onFinish, onCancel }: { exercise: Exercise; onFinish: (reps: number, durationSec: number) => void; onCancel: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -42,6 +42,7 @@ export function PoseCounter({ exercise, onFinish, onCancel }: { exercise: Exerci
   const [down, setDown] = useState(0);
   const stopRef = useRef<() => void>(() => {});
   const repsRef = useRef(0);
+  const startedAt = useRef(0);
 
   useEffect(() => () => stopRef.current(), []);
 
@@ -67,6 +68,7 @@ export function PoseCounter({ exercise, onFinish, onCancel }: { exercise: Exerci
       detector = created.detector;
       if (stopped) return detector.close();
       setStatus("running");
+      startedAt.current = performance.now();
 
       let state = newRepState();
       let lastVideoTime = -1;
@@ -109,7 +111,7 @@ export function PoseCounter({ exercise, onFinish, onCancel }: { exercise: Exerci
 
   const finish = () => {
     stopRef.current();
-    onFinish(repsRef.current);
+    onFinish(repsRef.current, Math.round((performance.now() - startedAt.current) / 1000));
   };
 
   const label = exercise === "pushup" ? "Push-ups" : "Squats";

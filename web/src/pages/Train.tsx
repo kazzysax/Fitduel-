@@ -44,7 +44,7 @@ export function WorkoutList({ workouts, empty }: { workouts: Workout[]; empty: s
           </span>
           <div>
             <b>{describe(w)}</b>
-            <span className={`source ${w.source}`}>{SOURCE_LABEL[w.source]}</span>
+            <span className={`source ${w.flagged && w.source === "camera" ? "review" : w.source}`}>{w.flagged && w.source === "camera" ? "Camera · under review" : SOURCE_LABEL[w.source]}</span>
           </div>
           <time className="mono">{new Date(w.time).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}</time>
         </li>
@@ -63,6 +63,8 @@ export function Train({ opts }: { opts: GoOptions }) {
   const champ = useMemo(() => champOf(profile), [profile]);
   const [active, setActive] = useState<Exercise | null>(opts.exercise ?? null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<Workout["kind"]>("pushups");
   const [amount, setAmount] = useState("");
   const manualRef = useRef<HTMLElement>(null);
@@ -73,9 +75,19 @@ export function Train({ opts }: { opts: GoOptions }) {
     if (opts.manual) manualRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [opts]);
 
-  const save = (k: Workout["kind"], n: number, source: Workout["source"]) => {
+  const save = async (k: Workout["kind"], n: number, source: Workout["source"], durationSec?: number) => {
     beforeRef.current = champOf(profile);
-    logWorkout(k, n, source);
+    setBusy(true);
+    setError(null);
+    try {
+      await logWorkout(k, n, source, durationSec);
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Show the stat change once the store has the new workout.
@@ -97,6 +109,14 @@ export function Train({ opts }: { opts: GoOptions }) {
         </div>
       </header>
 
+      {error && (
+        <div className="toast error-toast" role="alert">
+          <span>{error}</span>
+          <button className="btn small" onClick={() => setError(null)} aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
       {saved && (
         <div className="toast" role="status">
           <span>✓ {saved}</span>
@@ -112,9 +132,9 @@ export function Train({ opts }: { opts: GoOptions }) {
             key={active}
             exercise={active}
             onCancel={() => setActive(null)}
-            onFinish={(reps) => {
+            onFinish={(reps, durationSec) => {
               setActive(null);
-              if (reps > 0) save(active === "pushup" ? "pushups" : "squats", reps, "camera");
+              if (reps > 0) save(active === "pushup" ? "pushups" : "squats", reps, "camera", durationSec);
               else setSaved("No full reps counted this time. Try again with your whole body in view.");
             }}
           />
@@ -147,16 +167,13 @@ export function Train({ opts }: { opts: GoOptions }) {
 
       <section className="card" ref={manualRef}>
         <h2>Log activity</h2>
-        <p className="note">Manual entries count for free Duels and Rumbles. Cash Rumbles will only count camera-verified and tracker data.</p>
+        <p className="note">Manual entries count for Duels and free Rumbles. Cash Rumbles will only count camera-verified and tracker data.</p>
         <form
           className="manual"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             const n = Number(amount);
-            if (n > 0) {
-              save(kind, n, "manual");
-              setAmount("");
-            }
+            if (n > 0 && (await save(kind, n, "manual"))) setAmount("");
           }}
         >
           <div className="chip-select" role="radiogroup" aria-label="Activity">
@@ -178,7 +195,7 @@ export function Train({ opts }: { opts: GoOptions }) {
               aria-label={`${KIND_LABEL[kind].label} amount in ${KIND_LABEL[kind].unit}`}
             />
             <span className="unit">{KIND_LABEL[kind].unit}</span>
-            <button className="btn btn-primary" type="submit" disabled={!(Number(amount) > 0)}>
+            <button className="btn btn-primary" type="submit" disabled={busy || !(Number(amount) > 0)}>
               Add
             </button>
           </div>

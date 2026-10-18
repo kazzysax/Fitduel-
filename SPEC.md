@@ -216,6 +216,7 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 |---|---|
 | **0. Prototype** ✅ | Stats engine, Rumble simulation, 3D replay with placeholder blocky fighters built in code, fake data |
 | **0.5 App prototype** ✅ | All five tabs working in the browser with local data: Today dashboard, camera push-up and squat counter, Progress charts, Battleground (Duels, live Duels, practice Rumbles, division arenas), Champ page |
+| **1. MVP core** ✅ (built) | Accounts and onboarding, server-side training log with anti-cheat limits, Duels between real players' champions, scheduled daily and weekly free Rumbles with commit-reveal seeds, leaderboard, notifications, unlockable gear, installable app (PWA), Docker deployment. Remaining for MVP: tracker sync, push notifications, password reset email, final UI from design references |
 | **1. MVP (free)** | Fitness app shell (Today, Train, Progress, Battleground, Champ tabs), camera push-up and squat counter, step sync, accounts, free Duels and daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
 | **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
