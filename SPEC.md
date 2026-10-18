@@ -92,6 +92,15 @@ Exact weights get tuned in testing.
 
 ### 4.5 Fairness
 - Randomness is kept **low**. Training should decide most of the outcome, which matters for fairness and for skill-contest legal status (section 8).
+- **How training wins fights** (Phase 0 tuning, `engine/rumble.ts`):
+  - HP = 60 + 0.35 × Defense + 0.25 × Stamina.
+  - Punch damage scales from 0.3× to 1.5× with Power.
+  - Dodge chance rises with Speed.
+  - Technique makes fighters pick winnable fights, slip out of pile-ons, and make fewer sloppy moves.
+- **Measured over 150 simulated 30-fighter Rumbles** of fake players:
+  - Rank correlation between fitness rating and finishing place: 0.76.
+  - The best-trained group (All-Rounders) finished in the paid top 20% in 80% of Rumbles.
+  - Untrained players finished in the paid places in 0%.
 - The random seed for each Rumble is **committed before entry closes** (we publish its hash) and revealed afterwards, so anyone can re-run the fight and check the result.
 
 ---
@@ -185,7 +194,7 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 
 | Phase | Scope |
 |---|---|
-| **0. Prototype** | Stats engine, Rumble simulation, 3D replay with placeholder blocky fighters built in code, fake data |
+| **0. Prototype** ✅ | Stats engine, Rumble simulation, 3D replay with placeholder blocky fighters built in code, fake data |
 | **1. MVP (free)** | Web app, accounts, camera push-up and squat counter, step sync, daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
 | **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
@@ -219,10 +228,10 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 
   | Place | 1st | 2nd | 3rd | 4th | 5th | 6th |
   |---|---|---|---|---|---|---|
-  | Share of pool | 35% | 22% | 15% | 11% | 9% | 8% |
-  | $5 entry ($150 pool) | $52.50 | $33.00 | $22.50 | $16.50 | $13.50 | $12.00 |
+  | Share of pool | 35.3% | 20.3% | 14.6% | 11.6% | 9.7% | 8.4% |
+  | $5 entry ($150 pool) | $52.95 | $30.40 | $21.97 | $17.46 | $14.60 | $12.62 |
 
-- **Payout formula:** for other field sizes, a smooth curve with share ∝ 1 / place^1.1 across the paid places, normalized to 100%. The table is published before entry.
+- **Payout formula:** for any field size, share ∝ 1 / place^0.8 across the paid places, normalized to 100%. If that leaves a place under 1.5× entry, it is raised to 1.5× and the difference is taken proportionally from the places above. The table is published before entry. Implemented in `engine/payout.ts`.
 - **Free Rumbles:** pay out points, badges and cosmetics instead of cash.
 
 ### R4. Rumble size and unfilled Rumbles
