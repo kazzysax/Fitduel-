@@ -2,13 +2,17 @@
   "name": "fitduel",
   "version": "0.1.0",
   "private": true,
-  "description": "Train in real life, level up your blocky AI boxer, and enter it into automatic Rumbles.",
+  "description": "Fitness app where your training powers an AI champion that fights in Duels and Rumbles.",
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
-    "test": "node --test \"engine/test/*.test.ts\"",
+    "test": "node --disable-warning=ExperimentalWarning --test \"engine/test/*.test.ts\" \"server/test/*.test.ts\"",
     "demo": "node engine/demo.ts",
+    "server": "node --disable-warning=ExperimentalWarning server/main.ts",
     "dev": "npm --prefix web run dev",
-    "build": "npm --prefix web run build"
+    "build": "npm --prefix web run build",
+    "start": "npm run build && npm run server"
   }
 }
