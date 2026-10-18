@@ -1,8 +1,8 @@
-# FitDuel — Product Spec (draft v0.1)
+# FitDuel — Product Spec (draft v0.2)
 
 > Train in real life. Your training powers your AI fighter. Enter it into a Rumble, a many-fighter ring match that runs automatically, and the top finishers share the pool.
 
-Status: **draft for discussion**. Items marked **OPEN** still need a decision.
+Status: **draft for discussion**. Section 10 lists recommendations waiting for sign-off.
 
 ---
 
@@ -11,7 +11,7 @@ Status: **draft for discussion**. Items marked **OPEN** still need a decision.
 | Topic | Decision |
 |---|---|
 | Platform | **Web app** (installable PWA) that works on iPhone, Android and desktop browsers |
-| Visuals | **3D.** Fighters and arena are modelled and animated in **Blender**, then rendered in the browser |
+| Visuals | **3D, blocky toy-brick style** (an original design inspired by brick minifigures). Built in **Blender**, rendered in the browser |
 | Push-up tracking | Counted by the **camera**, with pose detection running in the browser |
 | Fighter AI | Game AI that runs on our servers. Fights are deterministic and replayable from a seed (no language model controls moves) |
 | Duels | **Fully automatic and in the background.** Players get a result plus an automatic replay scene |
@@ -19,7 +19,7 @@ Status: **draft for discussion**. Items marked **OPEN** still need a decision.
 | Entry | Players choose which Rumble to enter and pay an entry stake into the pool |
 | Schedule | **Daily** and **weekly** Rumbles |
 | Payout | The top finishers share the pool by score |
-| Platform fee | **None** (see Open item O2) |
+| Platform fee | **None.** 100% of stakes go to the pool. Revenue comes from cosmetics and the FitDuel Pass (R2) |
 | Matchmaking | **Divisions** by fighter level, so beginners face beginners |
 | Launch | **Worldwide** (see section 8 for how cash pools work country by country) |
 
@@ -59,7 +59,7 @@ Status: **draft for discussion**. Items marked **OPEN** still need a decision.
 ## 4. The Rumble
 
 ### 4.1 Format
-- Up to **30 fighters per ring**. Bigger events are split into heats; heat winners advance to a final.
+- **8–30 fighters per ring** (see R4 for unfilled Rumbles). Bigger events are split into heats; heat winners advance to a final.
   - **Daily Rumble:** one round of rings, finished the same day.
   - **Weekly Rumble:** heats during the week, then a final on the weekend.
 - Every fighter starts in the ring together. Each tick, a fighter chooses a target and an action (punch, guard, dodge, rest).
@@ -82,12 +82,12 @@ Exact weights get tuned in testing.
 
 ### 4.3 Payout (no platform fee)
 - **100% of the entry stakes** go to the pool.
-- **Top 20%** of finishers are paid, using a sliding scale (1st gets the most). Proposed default: **OPEN O3**.
+- **Top 20%** of finishers are paid on a published payout table (see R3).
 - Payouts are held until anti-cheat review passes (section 6).
 
 ### 4.4 Divisions
 - Fighters are grouped by **overall rating** into divisions (e.g. Rookie, Contender, Pro, Champion).
-- A rating (Elo or Glicko-2) moves you up and down based on results.
+- A multiplayer skill rating (OpenSkill, a free-for-all version of Elo) moves you up and down based on where you place.
 - You can only enter Rumbles in your own division, which stops veterans from farming new players.
 
 ### 4.5 Fairness
@@ -100,22 +100,31 @@ Exact weights get tuned in testing.
 - Fights run on the server in milliseconds. The "scene" is a **3D replay** rebuilt in the browser from the stored seed and the fighters, so we never stream video.
 - Players get a notification ("Your fighter finished 3rd of 30, you won X"), then watch the replay with highlights: knockouts, comebacks, their fighter's best moments.
 
-### 5.1 3D pipeline
+### 5.1 Art style: blocky toy-brick fighters
+- Chunky, blocky characters with snap-on parts: head, torso, arms, boxing-glove hands, hips, legs.
+- **Must be our own design, not LEGO's.** The LEGO name and the exact minifigure shape are protected trademarks. We take the *feel* (blocky, modular, playful) and give it our own proportions and details, such as a square jaw, chunky gloves and our own head shape.
+- **Why this style fits FitDuel:**
+  - **Very cheap to render.** Each part is a rigid low-poly piece (about 1–2k triangles per fighter). No skin deformation is needed, so **30 fighters run smoothly on phones**.
+  - **Modular customization.** Every part is swappable (helmets, hair, masks, torso prints, gloves, shorts, boots), which makes it a natural cosmetics shop.
+  - **Fun knockouts that stay family-friendly.** A KO'd fighter pops apart into pieces and bricks scatter across the ring. Impactful but not violent, which helps with age ratings and app-store or web policies.
+  - **Easy to animate.** It's a simple rig of pivots. A slightly choppy "brick film" animation style looks intentional and is quick to make.
+
+### 5.2 3D pipeline
 ```
-Blender (model, rig, animate) → export glTF/GLB → compress (Draco/meshopt + KTX2 textures)
+Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (meshopt + KTX2 textures)
   → loaded by Three.js (React Three Fiber) in the web app → driven by the replay event stream
 ```
-- **One shared base boxer** with one skeleton. Every fighter reuses it, which keeps the files small and lets all animations work on every fighter.
+- **One shared rig.** Every part attaches to the same pivots, so every animation works on every fighter and every cosmetic.
 - **Animation clips made in Blender:**
-  - Combat: idle/bounce, step, jab, hook, uppercut, guard, dodge, hit reaction, stagger, KO fall.
+  - Combat: idle bounce, step, jab, hook, uppercut, guard, dodge, hit reaction, stagger, KO burst.
   - Ceremony: ring entrance and victory pose.
-- **Arena:** a ring, ropes, lights and a crowd made of cheap cut-outs or instanced figures.
-- **Phone performance budget** (up to 30 fighters on screen):
-  - Low-poly fighters, about 5–10k triangles each, with simpler LOD models at a distance.
-  - Shared materials, and only fighters near the camera fully animated.
-  - The camera follows the action and the player's own fighter.
-- **Fighter looks show training.** Body build, gear and aura change with stats and rating, so you can see how hard someone trains.
-- **Customization:** skins, gloves, shorts, entrances and victory poses. This is also the main way to make money (O2).
+- **Arena:** a brick-built ring with ropes and lights. The crowd is instanced brick fans that cheer on big hits.
+- **Training shows on your fighter:**
+  - Glove material by Power: plastic, then metallic, then gold.
+  - Belt tier by division.
+  - Torso print by streak length.
+  - Aura effect at high rating.
+- **Camera:** an automatic director that follows the action, cuts to knockouts, and keeps the player's own fighter in view.
 
 ## 6. Anti-cheat (critical, because money is at stake)
 - **Camera reps:** pose detection checks full range of motion, pace and body position. Only rep counts plus a signed check summary are sent; no video is uploaded.
@@ -176,7 +185,7 @@ Blender (model, rig, animate) → export glTF/GLB → compress (Draco/meshopt + 
 
 | Phase | Scope |
 |---|---|
-| **0. Prototype** | Stats engine, Rumble simulation, basic 3D replay with a placeholder Blender boxer, fake data |
+| **0. Prototype** | Stats engine, Rumble simulation, 3D replay with placeholder blocky fighters built in code, fake data |
 | **1. MVP (free)** | Web app, accounts, camera push-up and squat counter, step sync, daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
 | **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
@@ -184,18 +193,55 @@ Blender (model, rig, animate) → export glTF/GLB → compress (Draco/meshopt + 
 
 ---
 
-## 10. Open items
+## 10. Recommendations (waiting for sign-off)
 
-- **O1. Step data on the web.**
-  - **The problem:** browsers **cannot read Apple Health**, and they have very limited access to Google Health Connect.
-  - **Options:**
-    - (a) Connect wearables and services through their web APIs: Fitbit, Garmin, Strava, Oura, Withings. A data aggregator like Terra can provide these in one integration.
-    - (b) Wrap the web app in a thin native shell (for example Capacitor) only to read Apple Health and Health Connect.
-    - (c) Count only camera exercises at first.
-  - **Recommendation:** (a) now, (b) later.
-- **O2. How does FitDuel make money with no platform fee?**
-  - Options: cosmetic fighter gear, a premium subscription (training insights, extra replays), sponsored Rumbles, interest on held funds (check legality).
-  - Payment processing fees (~2–3%) still need to be covered by someone.
-- **O3. Exact payout curve** (proposed: top 20% paid, sliding scale) and entry stake tiers.
-- **O4. Minimum and maximum fighters per Rumble,** and what happens if a Rumble doesn't fill.
-- **O5. 3D art direction:** realistic, stylised or cartoon? Who makes the Blender models: you, an artist, or placeholders to start?
+### R1. Activity data on the web
+- **MVP:** camera-counted push-ups and squats, which work in any browser, plus wearable sync through one aggregator (e.g. Terra), covering Fitbit, Garmin, Strava, Oura and more.
+- **Cash Rumbles:** only camera-verified exercise and wearable data count; hand-typed numbers count only in free Rumbles.
+- **Later:** a thin native wrapper (Capacitor) to read Apple Health and Google Health Connect, published to the app stores.
+
+### R2. Revenue with no platform fee
+- **Cosmetics shop:** fighter parts, gloves, entrances, victory poses, KO effects. The modular brick style makes this a large catalog. Cosmetics are **looks only and never affect stats**, so money can't buy wins.
+- **FitDuel Pass** (about $4.99/month): deeper training insights, unlimited replay saves, extra free Rumbles, monthly exclusive cosmetics.
+- **Sponsored Rumbles:** brands (sportswear, gyms, drinks) add prize money to a pool, so players get a bigger pool and FitDuel earns sponsor fees.
+- **Payment processing fees** are paid by FitDuel out of the revenue above, so the "100% to the pool" promise holds.
+
+### R3. Entry tiers and payout table
+- **Entry tiers:**
+
+  | Rumble | Entry tiers |
+  |---|---|
+  | Daily | Free · $1 · $5 · $20 |
+  | Weekly | Free · $5 · $25 · $100 |
+
+- **Paid places:** the top **20%** of each Rumble, and every paid place wins **at least 1.5× the entry**.
+- **Example payout table**, for a 30-fighter Rumble (6 paid places):
+
+  | Place | 1st | 2nd | 3rd | 4th | 5th | 6th |
+  |---|---|---|---|---|---|---|
+  | Share of pool | 35% | 22% | 15% | 11% | 9% | 8% |
+  | $5 entry ($150 pool) | $52.50 | $33.00 | $22.50 | $16.50 | $13.50 | $12.00 |
+
+- **Payout formula:** for other field sizes, a smooth curve with share ∝ 1 / place^1.1 across the paid places, normalized to 100%. The table is published before entry.
+- **Free Rumbles:** pay out points, badges and cosmetics instead of cash.
+
+### R4. Rumble size and unfilled Rumbles
+- **Ring size:** minimum **8** and maximum **30** fighters per ring.
+- **If a Rumble doesn't fill:** first merge it with the next-closest division if the ratings are close. If it still has fewer than 8 fighters, **refund everyone in full**.
+- **Bots:** they can fill **free** Rumbles so they always run, but **never cash Rumbles**. Cash pools are always player against player.
+
+### R5. Art and production
+- **Phase 0 (I build):** placeholder blocky fighters generated in code from simple boxes, so the game and replays can be built and tested right away.
+- **Phase 1 (artist):** a Blender artist (you or a hire) builds the real character kit and animations following section 5.1, and it drops into the same rig with no code changes.
+- **Artist brief:** a parts list, triangle budget, pivot names and the animation clip list. I'll write it when we reach Phase 1.
+
+### R6. Tech stack
+| Area | Choice |
+|---|---|
+| Web app | Next.js (React) built as a PWA, hosted on Vercel |
+| 3D | Three.js with React Three Fiber |
+| Pose detection | MediaPipe Pose, running in the browser |
+| Backend API | TypeScript on Node.js |
+| Database and cache | Postgres; Redis for queues and the lobby |
+| Rumble workers | Simulation workers on a container host, scaled by adding workers |
+| Payments, ID checks and location blocking | Licensed providers, chosen in Phase 3 with legal input |
