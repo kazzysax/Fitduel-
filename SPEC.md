@@ -1,6 +1,6 @@
-# FitDuel — Product Spec (draft v0.2)
+# FitDuel — Product Spec (draft v0.3)
 
-> Train in real life. Your training powers your AI fighter. Enter it into a Rumble, a many-fighter ring match that runs automatically, and the top finishers share the pool.
+> **A fitness app first.** Track your workouts, steps and progress every day. Your training builds your AI champion. In the **Battleground** you watch AI champions fight in Duels and Rumbles, join in, and see your own champ fight.
 
 Status: **draft for discussion**. Section 10 lists recommendations waiting for sign-off.
 
@@ -10,12 +10,13 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 
 | Topic | Decision |
 |---|---|
+| Product focus | **Fitness app first.** Most time is spent tracking and training; the Battleground is the reward and one tab of the app |
 | Platform | **Web app** (installable PWA) that works on iPhone, Android and desktop browsers |
 | Visuals | **3D, blocky toy-brick style** (an original design inspired by brick minifigures). Built in **Blender**, rendered in the browser |
 | Push-up tracking | Counted by the **camera**, with pose detection running in the browser |
 | Fighter AI | Game AI that runs on our servers. Fights are deterministic and replayable from a seed (no language model controls moves) |
 | Duels | **Fully automatic and in the background.** Players get a result plus an automatic replay scene |
-| Format | **Rumble:** many fighters in one ring, last one standing, like a WWE Royal Rumble |
+| Format | **Duels** (1 vs 1) and **Rumbles** (many fighters in one ring, last one standing, like a WWE Royal Rumble) |
 | Entry | Players choose which Rumble to enter and pay an entry stake into the pool |
 | Schedule | **Daily** and **weekly** Rumbles |
 | Payout | The top finishers share the pool by score |
@@ -25,16 +26,35 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 
 ---
 
-## 2. Core loop
+## 2. App structure and core loop
 
-1. **Train:** steps, push-ups (camera), squats (camera), runs and cardio.
-2. **Level up:** training turns into fighter stats.
-3. **Enter:** pick a daily or weekly Rumble in your division and stake an entry.
-4. **Fight:** at the scheduled time the server runs the Rumble automatically.
-5. **Watch and earn:** see the replay; top finishers get paid from the pool.
-6. Repeat. Stats fade without training, which brings people back.
+### 2.1 Core loop
+1. **Track:** log workouts, count push-ups and squats with the camera, sync steps and runs.
+2. **Progress:** see your streaks, goals and history like any good fitness app.
+3. **Build your champ:** your training turns into your AI champion's stats.
+4. **Battleground:** watch champions fight, join a Duel or Rumble, and see your champ fight.
+5. **Win and come back:** results and rewards push you to train again. Stats fade without training.
 
----
+### 2.2 Tabs (bottom navigation on phones)
+
+| Tab | Purpose | Main content |
+|---|---|---|
+| **Today** (home) | Daily fitness dashboard | Activity rings (steps, reps, active minutes), streak, today's goals, quick "Start workout" button, your champ's level-up progress |
+| **Train** | Do and log workouts | Camera rep counter (push-ups, squats), guided workouts, run/walk sync from trackers, workout history |
+| **Progress** | Fitness tracking over time | Weekly and monthly charts, personal bests, body stats (optional), achievements |
+| **Battleground** | Where the champions fight | Live and upcoming fights, Duels, Rumbles, your champ's fights and replays |
+| **Champ** | Your AI champion | 3D champ, stats and how training raised them, fight record, Locker Room (cosmetics) |
+
+### 2.3 The Battleground
+- **Live now:** a feed of fights happening or just finished. Tap any fight to watch it in the 3D arena.
+- **Duels (1 vs 1):** quick fights between two champions.
+  - **Join:** put your champ in the Duel queue; you're matched with a champion of similar level in your division.
+  - **Challenge a friend:** send a Duel link.
+  - Duels run fast (about 30–60 seconds) and can be watched straight away.
+- **Rumbles:** the scheduled daily and weekly many-fighter events (section 4), with pools.
+- **My champ's fights:** notifications when your champ's fight starts or ends ("Your champ is in the ring now — watch"), then a replay with highlights.
+- **Spectating:** anyone can watch any public fight, follow top champions, and see division leaderboards.
+- **Arenas by division:** Garage Gym (Rookie), Street Rooftop (Contender), City Arena (Pro), Brick Colosseum (Champion), Grand Arena (weekly finals). Arenas change only how fights look, never the result.
 
 ## 3. Training → fighter stats
 
@@ -195,7 +215,7 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 | Phase | Scope |
 |---|---|
 | **0. Prototype** ✅ | Stats engine, Rumble simulation, 3D replay with placeholder blocky fighters built in code, fake data |
-| **1. MVP (free)** | Web app, accounts, camera push-up and squat counter, step sync, daily free Rumbles, divisions, replays |
+| **1. MVP (free)** | Fitness app shell (Today, Train, Progress, Battleground, Champ tabs), camera push-up and squat counter, step sync, accounts, free Duels and daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
 | **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
 | **4. Scale** | Trained AI fighters, tournaments, regional infrastructure |
