@@ -1,0 +1,14 @@
+{
+  "name": "fitduel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Train in real life, level up your blocky AI boxer, and enter it into automatic Rumbles.",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --test \"engine/test/*.test.ts\"",
+    "demo": "node engine/demo.ts",
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build"
+  }
+}
