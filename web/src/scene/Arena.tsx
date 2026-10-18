@@ -6,6 +6,7 @@ import * as THREE from "three";
 
 import { RING_HALF_SIZE } from "../../../engine/rumble.ts";
 import { createRng } from "../../../engine/rng.ts";
+import type { Venue } from "../data/battle.ts";
 import type { Playback } from "../replay.ts";
 
 const EDGE = RING_HALF_SIZE + 0.7;
@@ -16,7 +17,7 @@ const CROWD_ROWS = 4;
 const ROW_RISE = 0.55;
 const rowDistance = (row: number) => EDGE + 2.2 + row * 1.1;
 
-function Studs() {
+function Studs({ color }: { color: string }) {
   const ref = useRef<THREE.InstancedMesh>(null!);
   const positions = useMemo(() => {
     const out: [number, number][] = [];
@@ -35,12 +36,12 @@ function Studs() {
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, positions.length]} receiveShadow>
       <cylinderGeometry args={[0.12, 0.12, 0.06, 16]} />
-      <meshStandardMaterial color="#2453b8" roughness={0.35} />
+      <meshStandardMaterial color={color} roughness={0.35} />
     </instancedMesh>
   );
 }
 
-function Crowd({ playback, koTicks }: { playback: Playback; koTicks: number[] }) {
+function Crowd({ playback, koTicks, fill }: { playback: Playback; koTicks: number[]; fill: number }) {
   const bodies = useRef<THREE.InstancedMesh>(null!);
   const heads = useRef<THREE.InstancedMesh>(null!);
   const fans = useMemo(() => {
@@ -53,7 +54,7 @@ function Crowd({ playback, koTicks }: { playback: Playback; koTicks: number[] })
       const y = FLOOR_Y + row * ROW_RISE;
       for (let side = 0; side < 4; side++) {
         for (let v = -d + 0.6; v <= d - 0.6; v += 0.85) {
-          if (rng() < 0.12) continue; // empty seats
+          if (rng() > fill) continue; // empty seats
           const jitter = (rng() - 0.5) * 0.25;
           const [x, z] = side === 0 ? [v + jitter, -d] : side === 1 ? [v + jitter, d] : side === 2 ? [-d, v + jitter] : [d, v + jitter];
           out.push({
@@ -69,7 +70,7 @@ function Crowd({ playback, koTicks }: { playback: Playback; koTicks: number[] })
       }
     }
     return out;
-  }, []);
+  }, [fill]);
 
   useLayoutEffect(() => {
     fans.forEach((f, i) => {
@@ -122,7 +123,7 @@ function Crowd({ playback, koTicks }: { playback: Playback; koTicks: number[] })
 }
 
 // Stepped stands under each crowd row.
-function Bleachers() {
+function Bleachers({ colors }: { colors: [string, string] }) {
   const steps = [];
   for (let row = 1; row < CROWD_ROWS; row++) {
     const d = rowDistance(row);
@@ -134,7 +135,7 @@ function Bleachers() {
       steps.push(
         <mesh key={`${row}-${side}`} position={horizontal ? [0, FLOOR_Y + h / 2, offset] : [offset, FLOOR_Y + h / 2, 0]}>
           <boxGeometry args={horizontal ? [len, h, 1.1] : [1.1, h, len]} />
-          <meshStandardMaterial color={row % 2 ? "#262a38" : "#2e3344"} roughness={0.9} />
+          <meshStandardMaterial color={colors[row % 2]} roughness={0.9} />
         </mesh>,
       );
     }
@@ -142,10 +143,10 @@ function Bleachers() {
   return <>{steps}</>;
 }
 
-export function Arena({ playback, koTicks }: { playback: Playback; koTicks: number[] }) {
+export function Arena({ playback, koTicks, venue }: { playback: Playback; koTicks: number[]; venue: Venue }) {
   const corners: [number, number, string][] = [
-    [-EDGE + 0.15, -EDGE + 0.15, "#d62828"],
-    [EDGE - 0.15, EDGE - 0.15, "#2453b8"],
+    [-EDGE + 0.15, -EDGE + 0.15, venue.posts[0]],
+    [EDGE - 0.15, EDGE - 0.15, venue.posts[1]],
     [-EDGE + 0.15, EDGE - 0.15, "#f1f1f1"],
     [EDGE - 0.15, -EDGE + 0.15, "#f1f1f1"],
   ];
@@ -154,13 +155,13 @@ export function Arena({ playback, koTicks }: { playback: Playback; koTicks: numb
       {/* Platform and canvas */}
       <mesh position={[0, -0.4, 0]} receiveShadow castShadow>
         <boxGeometry args={[EDGE * 2, 0.8, EDGE * 2]} />
-        <meshStandardMaterial color="#2a5bd7" roughness={0.4} />
+        <meshStandardMaterial color={venue.apron} roughness={0.4} />
       </mesh>
       <mesh position={[0, 0.005, 0]} receiveShadow>
         <boxGeometry args={[RING_HALF_SIZE * 2 + 0.4, 0.01, RING_HALF_SIZE * 2 + 0.4]} />
-        <meshStandardMaterial color="#ece6d6" roughness={0.8} />
+        <meshStandardMaterial color={venue.canvas} roughness={0.8} />
       </mesh>
-      <Studs />
+      <Studs color={venue.apron} />
       {/* Corner posts */}
       {corners.map(([x, z, c]) => (
         <mesh key={`${x},${z}`} position={[x, 0.75, z]} castShadow>
@@ -176,7 +177,7 @@ export function Arena({ playback, koTicks }: { playback: Playback; koTicks: numb
           return (
             <mesh key={`${i}-${side}`} position={horizontal ? [0, h, offset] : [offset, h, 0]}>
               <boxGeometry args={horizontal ? [EDGE * 2 - 0.3, 0.05, 0.05] : [0.05, 0.05, EDGE * 2 - 0.3]} />
-              <meshStandardMaterial color={i === 1 ? "#d62828" : "#f5f5f5"} roughness={0.5} />
+              <meshStandardMaterial color={i === 1 ? venue.ropes[0] : venue.ropes[1]} roughness={0.5} />
             </mesh>
           );
         }),
@@ -184,10 +185,10 @@ export function Arena({ playback, koTicks }: { playback: Playback; koTicks: numb
       {/* Arena floor */}
       <mesh position={[0, -0.81, 0]} rotation-x={-Math.PI / 2} receiveShadow>
         <planeGeometry args={[60, 60]} />
-        <meshStandardMaterial color="#1a1c26" roughness={0.9} />
+        <meshStandardMaterial color={venue.floor} roughness={0.9} />
       </mesh>
-      <Bleachers />
-      <Crowd playback={playback} koTicks={koTicks} />
+      <Bleachers colors={venue.stands} />
+      <Crowd key={venue.name} playback={playback} koTicks={koTicks} fill={venue.crowdFill} />
     </group>
   );
 }

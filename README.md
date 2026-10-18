@@ -1,48 +1,60 @@
 # FitDuel
 
-Train in real life, and your training powers a blocky AI boxer. Enter it into a **Rumble**, a 30-fighter ring match that runs automatically, then watch the 3D replay. The top finishers share the pool.
+**A fitness app first.** Track your workouts, steps and progress every day. Your training builds your AI champion, a blocky brick boxer. In the **Battleground** you watch champions fight in Duels and Rumbles, join in, and see your own champ fight.
 
 See [`SPEC.md`](SPEC.md) for the full product spec.
 
-![Rumble in progress](docs/screenshots/rumble-mid.png)
+![Today dashboard](docs/screenshots/today.png)
 
-## Phase 0 prototype (this repo)
+## What's in the app (prototype)
+
+| Tab | What you can do |
+|---|---|
+| **Today** | Activity rings for steps, reps and active minutes. Streak, quick-start buttons, your champ in 3D with what today's training added, and the next Rumble |
+| **Train** | **Camera push-up and squat counter** (pose detection in the browser; the video never leaves the device). Manual logging for steps, runs and active time. Workout history |
+| **Progress** | 7/14/28-day charts for steps and reps (with goal lines), your champ's rating over time, totals and personal bests |
+| **Battle** | **Join a Duel** (1 vs 1, matched by level), watch **live Duels** of other champions, enter practice **Rumbles** (30 fighters, pool payouts), your fight history |
+| **Champ** | Your 3D champion: stats and which exercise builds each one, division progress, name and colour, fight record, Locker Room preview |
+
+Each division fights in its own arena: Garage Gym (Rookie), Street Rooftop (Contender), City Arena (Pro), and Brick Colosseum (Champion and weekly finals).
+
+| Battleground | Duel | Champ |
+|---|---|---|
+| ![Battleground](docs/screenshots/battleground.png) | ![Duel](docs/screenshots/duel.png) | ![Champ](docs/screenshots/champ.png) |
+
+| Train | Progress | Phone |
+|---|---|---|
+| ![Train](docs/screenshots/train.png) | ![Progress](docs/screenshots/progress.png) | ![Phone](docs/screenshots/phone-today.png) |
+
+## How it fits together
 
 | Part | What it does |
 |---|---|
-| `engine/stats.ts` | Turns 28 days of activity (steps, push-ups, squats, running, active time) into fighter stats, with diminishing returns, daily caps and decay |
-| `engine/rumble.ts` | Deterministic many-fighter Rumble. Same fighters + seed = same result, so results are verifiable and replays are rebuilt instead of streamed |
+| `engine/stats.ts` | Turns 28 days of activity into champion stats, with diminishing returns, daily caps and decay |
+| `engine/reps.ts` | Rep counting from pose landmarks. A rep only counts after full range of motion, with a posture check |
+| `engine/rumble.ts` | Deterministic fight simulation for Duels (2 fighters) and Rumbles (up to 30). Same fighters + seed = same fight |
 | `engine/payout.ts` | Whole pool paid to the top 20%, every paid place wins at least 1.5× the entry, no platform fee |
-| `engine/fakeData.ts` | Fake players from training archetypes (couch starter → all-rounder) |
-| `web/` | 3D replay viewer: React + Three.js (React Three Fiber), placeholder brick fighters built in code |
+| `web/` | The app: React, Three.js (React Three Fiber) for 3D, and MediaPipe Pose for the camera counter |
 
-The web app uses the same engine code as the server will, so the Rumble you watch is computed by the same rules.
+Prototype data (your log, workouts and fights) is stored in the browser only. It starts with a few weeks of sample history; reset it from the Champ tab. Accounts and a backend come next.
 
-### Run it
+## Run it
 
 Requires Node.js 22.18 or newer.
 
 ```bash
-npm test                 # engine tests (no install needed)
+npm test                 # engine tests: stats, fights, payouts, rep counting
 npm run demo             # print a 30-fighter Rumble with payouts in the terminal
 
 cd web && npm install
 npm run dev              # open the printed URL
 ```
 
-In the viewer:
-- You are the yellow fighter marked **YOU**.
-- Click any fighter (or a name in the list) to follow them.
-- Use **Train** to change your training and re-run the same Rumble, so you can see how training changes the result.
+The camera counter needs a secure page (`localhost` or HTTPS) and camera permission. To try it on a phone, open the dev server over HTTPS or deploy it.
 
-| Results | Train your fighter | Phone |
-|---|---|---|
-| ![Results](docs/screenshots/results.png) | ![Train](docs/screenshots/train.png) | ![Mobile](docs/screenshots/mobile.png) |
+## Next
 
-## Next (Phase 1 MVP)
-
-- Accounts and a backend that runs scheduled daily Rumbles.
-- Camera push-up and squat counter in the browser (MediaPipe Pose).
-- Wearable step sync through an aggregator.
-- Divisions with skill rating.
-- Real Blender character kit replacing the placeholder fighters, using the same parts and pivots.
+- Accounts and a backend: saved training, real scheduled Rumbles, real matchmaking between players.
+- Tracker sync for steps and runs (Fitbit, Garmin, Strava through one aggregator).
+- More camera exercises.
+- The real Blender character kit, replacing the placeholder fighters with the same parts and pivots.

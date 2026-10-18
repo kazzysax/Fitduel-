@@ -99,10 +99,11 @@ interface Props {
   name: string;
   isYou: boolean;
   selected: boolean;
+  hideBar?: boolean;
   onSelect: (index: number) => void;
 }
 
-export function BrickFighter({ index, frames, playback, color, power, rating, maxHp, name, isYou, selected, onSelect }: Props) {
+export function BrickFighter({ index, frames, playback, color, power, rating, maxHp, name, isYou, selected, hideBar, onSelect }: Props) {
   const root = useRef<THREE.Group>(null!);
   const body = useRef<THREE.Group>(null!);
   const upper = useRef<THREE.Group>(null!);
@@ -181,7 +182,7 @@ export function BrickFighter({ index, frames, playback, color, power, rating, ma
       c.ref.current.rotation.set(0, 0, 0);
       c.ref.current.scale.setScalar(1);
     }
-    bar.current.visible = true;
+    bar.current.visible = !hideBar;
     if (tags.current) tags.current.visible = true;
     const hp = frames.hp[k] / maxHp;
     barFill.current.scale.x = Math.max(0.001, hp);
