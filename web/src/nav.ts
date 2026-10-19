@@ -1,13 +1,15 @@
+import { ChartNoAxesColumn, Dumbbell, House, Swords, Trophy, type LucideIcon } from "lucide-react";
+
 import type { Exercise } from "../../engine/reps.ts";
 
 export type Tab = "today" | "train" | "progress" | "battleground" | "champ";
 
-export const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "today", label: "Today", icon: "◎" },
-  { id: "train", label: "Train", icon: "✚" },
-  { id: "progress", label: "Progress", icon: "▤" },
-  { id: "battleground", label: "Battle", icon: "⚔" },
-  { id: "champ", label: "Champ", icon: "★" },
+export const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
+  { id: "today", label: "Today", icon: House },
+  { id: "train", label: "Workouts", icon: Dumbbell },
+  { id: "progress", label: "Progress", icon: ChartNoAxesColumn },
+  { id: "battleground", label: "Battle", icon: Swords },
+  { id: "champ", label: "Champ", icon: Trophy },
 ];
 
 export interface GoOptions {

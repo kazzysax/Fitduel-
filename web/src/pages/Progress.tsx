@@ -1,6 +1,8 @@
+import { Activity, ChartNoAxesColumn, Dumbbell, Footprints, Medal, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { BarChart, LineChart, SERIES } from "../components/Charts.tsx";
+import { BigNumber, Card, CardLabel } from "../components/ui.tsx";
 import { champOf, dayLog, daysAgo, isActiveDay, useProfile } from "../data/store.ts";
 
 function shortLabel(date: string): string {
@@ -19,97 +21,88 @@ export function Progress() {
   const activeDays = logs.filter(isActiveDay).length;
   const bestSteps = logs.reduce((b, l) => (l.steps > b.steps ? l : b), logs[0]);
   const ovrChange = ovr[ovr.length - 1].value - ovr[0].value;
-
   const best = (k: "steps" | "pushups" | "squats") => profile.bests[k] ?? 0;
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <div className="label">Progress</div>
-          <h1>Your training</h1>
-        </div>
+      <header className="title-row">
+        <h1>Progress</h1>
         <div className="seg" role="radiogroup" aria-label="Time range">
           {([7, 14, 28] as const).map((r) => (
             <button key={r} role="radio" aria-checked={range === r} className={range === r ? "on" : ""} onClick={() => setRange(r)}>
-              {r} days
+              {r}d
             </button>
           ))}
         </div>
       </header>
 
-      <div className="tiles">
-        <div className="tile">
-          <div className="label">Steps</div>
-          <div className="tile-value mono">{total("steps").toLocaleString()}</div>
-          <div className="note">avg {Math.round(total("steps") / range).toLocaleString()} a day</div>
-        </div>
-        <div className="tile">
-          <div className="label">Reps</div>
-          <div className="tile-value mono">{(total("pushups") + total("squats")).toLocaleString()}</div>
-          <div className="note">
+      <div className="grid-2 tiles">
+        <Card>
+          <CardLabel icon={Footprints}>Steps</CardLabel>
+          <BigNumber value={total("steps").toLocaleString()} small />
+          <span className="muted small-print">avg {Math.round(total("steps") / range).toLocaleString()} a day</span>
+        </Card>
+        <Card>
+          <CardLabel icon={Dumbbell}>Reps</CardLabel>
+          <BigNumber value={(total("pushups") + total("squats")).toLocaleString()} small />
+          <span className="muted small-print">
             {total("pushups")} push-ups · {total("squats")} squats
-          </div>
-        </div>
-        <div className="tile">
-          <div className="label">Active days</div>
-          <div className="tile-value mono">
-            {activeDays}
-            <small>/{range}</small>
-          </div>
-          <div className="note">{profile.streak.current} day streak now</div>
-        </div>
-        <div className="tile">
-          <div className="label">Champ OVR</div>
-          <div className="tile-value mono">{ovr[ovr.length - 1].value}</div>
-          <div className={`note ${ovrChange > 0 ? "up" : ovrChange < 0 ? "down" : ""}`}>
+          </span>
+        </Card>
+        <Card>
+          <CardLabel icon={Activity}>Active days</CardLabel>
+          <BigNumber value={activeDays} unit={`/ ${range}`} small />
+          <span className="muted small-print">{profile.streak.current} day streak now</span>
+        </Card>
+        <Card>
+          <CardLabel icon={Zap}>Champ OVR</CardLabel>
+          <BigNumber value={ovr[ovr.length - 1].value} small />
+          <span className={`small-print ${ovrChange > 0 ? "up" : ovrChange < 0 ? "down" : "muted"}`}>
             {ovrChange > 0 ? "▲" : ovrChange < 0 ? "▼" : "•"} {Math.abs(ovrChange)} in {range} days
-          </div>
-        </div>
+          </span>
+        </Card>
       </div>
 
-      <section className="card">
-        <h2>Steps per day</h2>
-        <p className="note">
-          Best day: {bestSteps.steps.toLocaleString()} on {shortLabel(bestSteps.date)}
-        </p>
+      <Card>
+        <CardLabel icon={Footprints} action={<span className="muted">Best {bestSteps.steps.toLocaleString()} · {shortLabel(bestSteps.date)}</span>}>
+          Steps per day
+        </CardLabel>
         <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.steps }))} color={SERIES.steps} goal={profile.goals.steps} unit="steps" />
-      </section>
+      </Card>
 
-      <div className="two-col">
-        <section className="card">
-          <h2>Reps per day</h2>
-          <p className="note">Push-ups and squats combined</p>
+      <div className="grid-2 wide-only">
+        <Card>
+          <CardLabel icon={Dumbbell}>Reps per day</CardLabel>
           <BarChart data={logs.map((l) => ({ label: shortLabel(l.date), value: l.pushups + l.squats }))} color={SERIES.reps} goal={profile.goals.reps} unit="reps" />
-        </section>
-        <section className="card">
-          <h2>Champ rating (OVR)</h2>
-          <p className="note">Rises with training, fades when you stop</p>
+        </Card>
+        <Card>
+          <CardLabel icon={ChartNoAxesColumn}>Champ rating</CardLabel>
           <LineChart data={ovr} color={SERIES.ovr} unit="OVR" />
-        </section>
+          <p className="note">Rises with training, fades when you stop.</p>
+        </Card>
       </div>
 
-      <section className="card">
-        <h2>Personal bests</h2>
+      <Card>
+        <CardLabel icon={Medal}>Personal bests</CardLabel>
         <div className="bests">
           <div>
             <span>Most steps in a day</span>
-            <b className="mono">{best("steps").toLocaleString()}</b>
+            <b>{best("steps").toLocaleString()}</b>
           </div>
           <div>
             <span>Most push-ups in a day</span>
-            <b className="mono">{best("pushups")}</b>
+            <b>{best("pushups")}</b>
           </div>
           <div>
             <span>Most squats in a day</span>
-            <b className="mono">{best("squats")}</b>
+            <b>{best("squats")}</b>
           </div>
           <div>
-            <span>Total distance run ({range} days)</span>
-            <b className="mono">{total("runKm").toFixed(1)} km</b>
+            <span>Distance run ({range} days)</span>
+            <b>{total("runKm").toFixed(1)} km</b>
           </div>
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

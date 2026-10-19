@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import { ArenaView, type ArenaProps } from "./arena/ArenaView.tsx";
+import { Toast } from "./components/ui.tsx";
 import { fetchFight, VENUES } from "./data/battle.ts";
 import { boot, refresh, useSession, type Profile } from "./data/store.ts";
 import { TABS, type GoOptions, type Tab } from "./nav.ts";
@@ -82,26 +83,32 @@ function Main({ profile }: { profile: Profile }) {
     <WatchContext.Provider value={watch}>
       <div className="shell">
         <nav className="tabbar" aria-label="Main">
-          <div className="brand">
-            Fit<span>Duel</span>
+          <div className="brand rail-brand" aria-hidden>
+            F<span>D</span>
           </div>
-          {TABS.map((t) => (
-            <button key={t.id} className={`tab ${tab === t.id ? "on" : ""}`} aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
-              <span className="tab-icon" aria-hidden>
-                {t.icon}
-              </span>
-              <span>{t.label}</span>
-              {t.id === "today" && profile.unread > 0 && <span className="dot" aria-label={`${profile.unread} new`} />}
-            </button>
-          ))}
+          <div className="tabs">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={`tab ${tab === t.id ? "on" : ""}`}
+                aria-current={tab === t.id ? "page" : undefined}
+                aria-label={t.label}
+                title={t.label}
+                onClick={() => go(t.id)}
+              >
+                <t.icon size={20} strokeWidth={1.9} aria-hidden />
+                <span className="tab-label">{t.label}</span>
+                {t.id === "today" && profile.unread > 0 && <span className="dot" aria-label={`${profile.unread} new`} />}
+              </button>
+            ))}
+          </div>
         </nav>
         <main className="main">
           {arenaError && (
-            <div className="toast error-toast" role="alert">
-              <span>{arenaError}</span>
-              <button className="btn small" onClick={() => setArenaError(null)} aria-label="Dismiss">
-                ✕
-              </button>
+            <div className="page-toast">
+              <Toast error onClose={() => setArenaError(null)}>
+                {arenaError}
+              </Toast>
             </div>
           )}
           {tab === "today" && <Today go={go} />}

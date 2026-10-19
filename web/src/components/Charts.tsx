@@ -3,7 +3,8 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-export const SERIES = { steps: "#c98500", reps: "#d55181", active: "#3987e5", ovr: "#3987e5" };
+// One series per chart, so every chart uses the single brand accent.
+export const SERIES = { steps: "#d4ff3a", reps: "#d4ff3a", active: "#d4ff3a", ovr: "#d4ff3a" };
 
 export function Ring({ value, goal, color, label, unit }: { value: number; goal: number; color: string; label: string; unit: string }) {
   const r = 34;

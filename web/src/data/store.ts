@@ -69,7 +69,7 @@ export interface Profile {
 
 export type Session = { status: "loading" } | { status: "signedOut" } | { status: "error"; message: string } | { status: "ready"; profile: Profile };
 
-const HISTORY_DAYS = WINDOW_DAYS * 2; // enough to chart the champ's rating over 28 days
+const HISTORY_DAYS = 91; // dot calendar (3 months) and 28 days of champ rating history
 
 let session: Session = { status: "loading" };
 const listeners = new Set<() => void>();

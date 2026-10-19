@@ -50,10 +50,10 @@ const mat = {
   dark: plastic("#1d1f27"),
   pants: plastic("#30364a"),
   barBg: new THREE.MeshBasicMaterial({ color: "#111", transparent: true, opacity: 0.6 }),
-  marker: new THREE.MeshBasicMaterial({ color: "#ffd60a", transparent: true, opacity: 0.9 }),
+  marker: new THREE.MeshBasicMaterial({ color: "#d4ff3a", transparent: true, opacity: 0.9 }),
   gloves: [
     plastic("#d62828"),
-    new THREE.MeshStandardMaterial({ color: "#cfd6df", metalness: 0.85, roughness: 0.25 }),
+    new THREE.MeshStandardMaterial({ color: "#c9d0da", metalness: 0.45, roughness: 0.35 }),
     new THREE.MeshStandardMaterial({ color: "#ffc633", metalness: 0.85, roughness: 0.3 }),
   ],
   belts: [plastic("#8d99ae"), plastic("#3a86ff"), plastic("#ffc633")],
@@ -77,7 +77,7 @@ function Label({ text, highlight }: { text: string; highlight: boolean }) {
     const w = Math.ceil(ctx.measureText(text).width) + 36;
     canvas.width = w;
     canvas.height = 64;
-    ctx.fillStyle = highlight ? "#ffd60a" : "rgba(0,0,0,0.75)";
+    ctx.fillStyle = highlight ? "#d4ff3a" : "rgba(0,0,0,0.75)";
     ctx.beginPath();
     ctx.roundRect(0, 0, w, 64, 14);
     ctx.fill();

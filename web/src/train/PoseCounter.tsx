@@ -195,7 +195,7 @@ function draw(c: HTMLCanvasElement | null, v: HTMLVideoElement, lm: Landmark[] |
   ctx.clearRect(0, 0, c.width, c.height);
   if (!lm) return;
   ctx.lineWidth = 4;
-  ctx.strokeStyle = good ? "#ffd60a" : "rgba(255,255,255,0.6)";
+  ctx.strokeStyle = good ? "#d4ff3a" : "rgba(255,255,255,0.6)";
   for (const { start, end } of connections) {
     const a = lm[start];
     const b = lm[end];

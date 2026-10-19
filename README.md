@@ -4,6 +4,12 @@
 
 See [`SPEC.md`](SPEC.md) for the full product spec.
 
+| Today | Workouts | Battle | Duel | Champ |
+|---|---|---|---|---|
+| ![Today](docs/screenshots/phone-today.png) | ![Workouts](docs/screenshots/phone-train.png) | ![Battle](docs/screenshots/phone-battleground.png) | ![Duel](docs/screenshots/phone-duel.png) | ![Champ](docs/screenshots/phone-champ.png) |
+
+![Desktop](docs/screenshots/desktop-today.png)
+
 ## What works
 
 **Accounts and onboarding.** Sign up with email and password, name and colour your champion, pick daily goals.

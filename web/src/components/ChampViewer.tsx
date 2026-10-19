@@ -31,26 +31,25 @@ function Clock({ playback }: { playback: Playback }) {
   return null;
 }
 
-export function ChampViewer({ champ, interactive = false }: { champ: Champ; interactive?: boolean }) {
+export function ChampViewer({ champ, interactive = false, hero = false }: { champ: Champ; interactive?: boolean; hero?: boolean }) {
   const frames = useMemo(idleFrames, []);
   const playback = useRef<Playback>({ t: 0, playing: true, speed: 1 }).current;
   return (
-    <div className="champ-viewer">
-      <Canvas camera={{ position: [1.6, 1.6, 3.2], fov: 35 }} dpr={[1, 2]} shadows>
+    <div className={`champ-viewer ${hero ? "hero" : ""}`}>
+      <Canvas camera={{ position: hero ? [1.2, 1.1, 2.9] : [1.6, 1.6, 3.2], fov: 35 }} dpr={[1, 2]} shadows gl={{ alpha: true }}>
         <hemisphereLight args={["#fff6e0", "#202436", 1.1]} />
         <directionalLight position={[3, 6, 4]} intensity={2} castShadow shadow-mapSize={[512, 512]} />
+        <pointLight position={[0, 0.2, -1.4]} intensity={2.2} color="#d4ff3a" distance={4} />
         <Clock playback={playback} />
         <group position={[0, -0.75, 0]}>
           <mesh position={[0, -0.1, 0]} receiveShadow>
             <cylinderGeometry args={[0.85, 0.95, 0.2, 32]} />
-            <meshStandardMaterial color="#2a2e3d" roughness={0.5} />
+            <meshStandardMaterial color="#1d1f1a" roughness={0.5} />
           </mesh>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <mesh key={i} position={[Math.sin((i / 6) * Math.PI * 2) * 0.62, 0.03, Math.cos((i / 6) * Math.PI * 2) * 0.62]}>
-              <cylinderGeometry args={[0.09, 0.09, 0.06, 16]} />
-              <meshStandardMaterial color="#363b4e" roughness={0.4} />
-            </mesh>
-          ))}
+          <mesh position={[0, 0.005, 0]} rotation-x={-Math.PI / 2}>
+            <torusGeometry args={[0.72, 0.008, 8, 64]} />
+            <meshStandardMaterial color="#d4ff3a" emissive="#c6f432" emissiveIntensity={0.8} transparent opacity={0.7} />
+          </mesh>
           <BrickFighter
             index={0}
             frames={frames}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useWatchFight } from "../App.tsx";
+import { Toast } from "../components/ui.tsx";
 import { useAsync } from "../components/useAsync.ts";
 import {
   countdown,
@@ -85,30 +86,26 @@ export function Battleground({ opts }: { opts: GoOptions }) {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <div className="label">Battleground</div>
-          <h1>Arena</h1>
-        </div>
+      <header className="title-row">
+        <h1>Battle</h1>
         <div className="record">
           <span className="swatch" style={{ background: champ.color }} />
-          <b>{champ.name}</b> · OVR {champ.rating} · {division.name}
-          <span className="mono">
+          <b>{champ.rating}</b>
+          <span className="muted">{division.name}</span>
+          <span className="wl">
             {profile.record.duelWins}W {profile.record.duels - profile.record.duelWins}L
           </span>
         </div>
       </header>
 
       {error && (
-        <div className="toast error-toast" role="alert">
-          <span>{error}</span>
-          <button className="btn small" onClick={() => setError(null)} aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
+        <Toast error onClose={() => setError(null)}>
+          {error}
+        </Toast>
       )}
 
       <section className="card duel-cta">
+        <div className="cta-glow" aria-hidden />
         <div>
           <div className="label">1 vs 1 · Free</div>
           <h2>Join a Duel</h2>
@@ -117,7 +114,7 @@ export function Battleground({ opts }: { opts: GoOptions }) {
           </p>
         </div>
         <button className="btn btn-primary big-btn" onClick={duel} disabled={busy}>
-          {busy ? "Finding an opponent…" : "⚔ Fight now"}
+          {busy ? "Finding an opponent…" : "Fight now"}
         </button>
       </section>
 
@@ -187,7 +184,7 @@ export function Battleground({ opts }: { opts: GoOptions }) {
                 </div>
                 <div>
                   <span>Starts</span>
-                  <b className="mono">{starts.toLocaleTimeString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}</b>
+                  <b className="mono">{starts.toLocaleString(undefined, { weekday: "short", hour: "numeric" })}</b>
                 </div>
               </div>
               <p className="note">

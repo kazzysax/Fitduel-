@@ -1,8 +1,10 @@
+import { Check, Lock, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { GEAR, type GearSlot } from "../../../engine/league.ts";
 import { ChampViewer } from "../components/ChampViewer.tsx";
 import { StatBars } from "../components/StatBars.tsx";
+import { Toast } from "../components/ui.tsx";
 import { DIVISIONS, divisionFor, VENUES } from "../data/battle.ts";
 import { champOf, deleteAccount, logOut, updateChamp, updateMe, useProfile } from "../data/store.ts";
 import type { Go } from "../nav.ts";
@@ -40,25 +42,24 @@ export function ChampPage({ go }: { go: Go }) {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <div>
-          <div className="label">Your AI champion</div>
-          <h1>{champ.name}</h1>
-        </div>
+      <header className="title-row">
+        <h1>{champ.name}</h1>
+        <span className="record">
+          <b>OVR {champ.rating}</b>
+          <span className="muted">{division.name}</span>
+        </span>
       </header>
 
       {msg && (
-        <div className={`toast ${msg.error ? "error-toast" : ""}`} role="status">
-          <span>{msg.text}</span>
-          <button className="btn small" onClick={() => setMsg(null)} aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
+        <Toast error={msg.error} onClose={() => setMsg(null)}>
+          {msg.text}
+        </Toast>
       )}
 
       <div className="two-col champ-layout">
         <section className="card champ-stage">
-          <ChampViewer champ={champ} interactive />
+          <div className="hero-glow" aria-hidden />
+          <ChampViewer champ={champ} interactive hero />
           <div className="division-badge">
             <b>{division.name}</b> · fights in the {VENUES[division.venue].name}
           </div>
@@ -94,7 +95,7 @@ export function ChampPage({ go }: { go: Go }) {
             const on = profile.equipped[item.slot] === item.id;
             return (
               <button key={item.id} className={`locker-item ${unlocked ? "unlocked" : ""} ${on ? "on" : ""}`} disabled={!unlocked} onClick={() => toggleGear(item.slot, item.id)}>
-                <span aria-hidden>{on ? "✓" : unlocked ? "◆" : "🔒"}</span>
+                <span className="locker-icon" aria-hidden>{on ? <Check size={16} /> : unlocked ? <Sparkles size={16} /> : <Lock size={16} />}</span>
                 <b>{item.name}</b>
                 <span className="note">{unlocked ? (on ? "Equipped · tap to remove" : "Tap to equip") : item.how}</span>
               </button>
