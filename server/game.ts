@@ -6,7 +6,23 @@ import { createHash, randomInt } from "node:crypto";
 
 import { makeFakeField, type FakePlayer } from "../engine/fakeData.ts";
 import { divisionFor, unlockedGear, type Equipped, type VenueId } from "../engine/league.ts";
-import { computePayouts } from "../engine/payout.ts";
+import {
+  applyUpgrades,
+  AREAS,
+  condition,
+  CONDITION_WINDOW_DAYS,
+  DAILY_FIGHT_XP_CAP,
+  DAILY_TRAINING_XP_CAP,
+  fightXp,
+  levelOf,
+  MAX_LEVEL,
+  movesFor,
+  unlockedMoves,
+  upgradeCost,
+  workoutXp,
+  type Area,
+  type Upgrades,
+} from "../engine/progression.ts";
 import { simulateRumble, type Standing } from "../engine/rumble.ts";
 import { computeStats, overallRating, WINDOW_DAYS, type ActivityDay, type FighterStats } from "../engine/stats.ts";
 import { tx, type DB } from "./db.ts";
@@ -36,6 +52,7 @@ export function clientToday(given: unknown): string {
 export interface ChampSnapshot extends FakePlayer {
   userId: number | null; // null for house champions (bots)
   equipped: Equipped;
+  moves?: string[];
 }
 
 type ActivityRow = { date: string; steps: number; pushups: number; squats: number; active_minutes: number; run_km: number };
@@ -59,15 +76,58 @@ export function statsFor(db: DB, userId: number, today: string): FighterStats {
   return computeStats(history, today);
 }
 
-export function champSnapshot(db: DB, userId: number, today: string): ChampSnapshot {
-  const c = db.prepare("SELECT name, color, equipped FROM champs WHERE user_id = ?").get(userId) as { name: string; color: string; equipped: string } | undefined;
-  if (!c) throw new HttpError(404, "Champion not found");
-  const stats = statsFor(db, userId, today);
-  return { id: `u${userId}`, userId, name: c.name, color: c.color, archetype: "Player", stats, rating: overallRating(stats), equipped: JSON.parse(c.equipped) };
-}
-
 function isActive(r: ActivityRow): boolean {
   return r.steps >= 5000 || r.pushups >= 10 || r.active_minutes >= 20;
+}
+
+export function conditionFor(db: DB, userId: number, today: string): { value: number; activeDays: number } {
+  const rows = activityRows(db, userId, addDays(today, -(CONDITION_WINDOW_DAYS - 1)), today);
+  const activeDays = rows.filter(isActive).length;
+  return { value: condition(activeDays), activeDays };
+}
+
+export function upgradesFor(db: DB, userId: number): Upgrades {
+  const row = db.prepare("SELECT upgrades FROM champs WHERE user_id = ?").get(userId) as { upgrades: string } | undefined;
+  return row ? (JSON.parse(row.upgrades) as Upgrades) : {};
+}
+
+// The champion as it fights: base stats from training, plus XP upgrades scaled by
+// condition, plus any signature moves it is fit enough to use.
+export function champDetails(db: DB, userId: number, today: string) {
+  const c = db.prepare("SELECT name, color, equipped, upgrades FROM champs WHERE user_id = ?").get(userId) as
+    | { name: string; color: string; equipped: string; upgrades: string }
+    | undefined;
+  if (!c) throw new HttpError(404, "Champion not found");
+  const baseStats = statsFor(db, userId, today);
+  const upgrades = JSON.parse(c.upgrades) as Upgrades;
+  const cond = conditionFor(db, userId, today);
+  const stats = applyUpgrades(baseStats, upgrades, cond.value);
+  return {
+    name: c.name,
+    color: c.color,
+    equipped: JSON.parse(c.equipped) as Equipped,
+    baseStats,
+    stats,
+    upgrades,
+    condition: cond,
+    moves: movesFor(upgrades, cond.value),
+    unlockedMoves: unlockedMoves(upgrades),
+  };
+}
+
+export function champSnapshot(db: DB, userId: number, today: string): ChampSnapshot {
+  const d = champDetails(db, userId, today);
+  return {
+    id: `u${userId}`,
+    userId,
+    name: d.name,
+    color: d.color,
+    archetype: "Player",
+    stats: d.stats,
+    rating: overallRating(d.stats),
+    equipped: d.equipped,
+    moves: d.moves,
+  };
 }
 
 export function streaks(db: DB, userId: number, today: string): { current: number; best: number } {
@@ -96,7 +156,7 @@ export interface Record_ {
   rumbles: number;
   rumbleWins: number;
   bestRumblePlace: number | null;
-  practiceWinningsCents: number;
+  fightXp: number;
 }
 
 export function recordFor(db: DB, userId: number): Record_ {
@@ -108,7 +168,7 @@ export function recordFor(db: DB, userId: number): Record_ {
          SUM(f.mode = 'rumble') AS rumbles,
          SUM(f.mode = 'rumble' AND e.place = 1) AS rumbleWins,
          MIN(CASE WHEN f.mode = 'rumble' THEN e.place END) AS best,
-         SUM(e.payout_cents) AS winnings
+         SUM(e.xp) AS fightXp
        FROM fight_entries e JOIN fights f ON f.id = e.fight_id WHERE e.user_id = ?`,
     )
     .get(userId) as Record<string, number | null>;
@@ -118,7 +178,7 @@ export function recordFor(db: DB, userId: number): Record_ {
     rumbles: r.rumbles ?? 0,
     rumbleWins: r.rumbleWins ?? 0,
     bestRumblePlace: r.best ?? null,
-    practiceWinningsCents: r.winnings ?? 0,
+    fightXp: r.fightXp ?? 0,
   };
 }
 
@@ -126,6 +186,59 @@ export function unlockedFor(db: DB, userId: number, today: string): string[] {
   const rec = recordFor(db, userId);
   const { best } = streaks(db, userId, today);
   return unlockedGear({ duels: rec.duels, duelWins: rec.duelWins, rumbleWins: rec.rumbleWins, bestStreak: best, rating: champSnapshot(db, userId, today).rating });
+}
+
+// ───── XP ─────
+
+function earnedOn(db: DB, userId: number, date: string, reason: string): number {
+  return (db.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM xp_ledger WHERE user_id = ? AND date = ? AND reason = ?").get(userId, date, reason) as { n: number }).n;
+}
+
+export function xpBalance(db: DB, userId: number): number {
+  return (db.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM xp_ledger WHERE user_id = ?").get(userId) as { n: number }).n;
+}
+
+function addXp(db: DB, userId: number, date: string, amount: number, reason: string, detail: string): void {
+  if (amount === 0) return;
+  db.prepare("INSERT INTO xp_ledger (user_id, time, date, amount, reason, detail) VALUES (?, ?, ?, ?, ?, ?)").run(userId, new Date().toISOString(), date, amount, reason, detail);
+}
+
+// Grants up to `amount` XP without going over the daily cap for that reason.
+function grantCapped(db: DB, userId: number, date: string, amount: number, reason: "training" | "fight", cap: number, detail: string): number {
+  const room = Math.max(0, cap - earnedOn(db, userId, date, reason));
+  const granted = Math.min(amount, room);
+  addXp(db, userId, date, granted, reason, detail);
+  return granted;
+}
+
+export function xpSummary(db: DB, userId: number, today: string) {
+  return {
+    balance: xpBalance(db, userId),
+    trainingToday: earnedOn(db, userId, today, "training"),
+    trainingCap: DAILY_TRAINING_XP_CAP,
+    fightToday: earnedOn(db, userId, today, "fight"),
+    fightCap: DAILY_FIGHT_XP_CAP,
+  };
+}
+
+export function xpHistory(db: DB, userId: number, limit = 30) {
+  return db.prepare("SELECT time, amount, reason, detail FROM xp_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?").all(userId, limit);
+}
+
+// Spends XP on one level of an upgrade area.
+export function buyUpgrade(db: DB, userId: number, area: unknown, today: string): { area: Area; level: number; cost: number } {
+  if (typeof area !== "string" || !AREAS.includes(area as Area)) throw new HttpError(400, "Unknown upgrade area");
+  return tx(db, () => {
+    const upgrades = upgradesFor(db, userId);
+    const level = levelOf(upgrades, area as Area);
+    if (level >= MAX_LEVEL) throw new HttpError(409, "That area is already maxed out");
+    const cost = upgradeCost(level);
+    if (xpBalance(db, userId) < cost) throw new HttpError(409, `You need ${cost} XP for the next level`);
+    upgrades[area as Area] = level + 1;
+    db.prepare("UPDATE champs SET upgrades = ? WHERE user_id = ?").run(JSON.stringify(upgrades), userId);
+    addXp(db, userId, today, -cost, "upgrade", `${area} level ${level + 1}`);
+    return { area: area as Area, level: level + 1, cost };
+  });
 }
 
 // ───── Workouts and anti-cheat ─────
@@ -161,7 +274,7 @@ export function parseWorkout(body: unknown, today: string): WorkoutInput {
   return { kind: b.kind as WorkoutKind, amount: Math.round(amount * 10) / 10, source: b.source as WorkoutInput["source"], durationSec, date: today };
 }
 
-export function logWorkout(db: DB, userId: number, w: WorkoutInput): { id: number; flagged: string | null } {
+export function logWorkout(db: DB, userId: number, w: WorkoutInput): { id: number; flagged: string | null; xp: number; capped: boolean } {
   const limits = WORKOUT_KINDS[w.kind];
   const col = limits.column;
   return tx(db, () => {
@@ -185,7 +298,12 @@ export function logWorkout(db: DB, userId: number, w: WorkoutInput): { id: numbe
     const res = db
       .prepare("INSERT INTO workouts (user_id, time, date, kind, amount, source, flagged) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(userId, new Date().toISOString(), w.date, w.kind, w.amount, w.source, flagged);
-    return { id: Number(res.lastInsertRowid), flagged };
+
+    // Suspicious camera sets earn XP like manual entries until reviewed.
+    const xpSource = flagged && w.source === "camera" ? "manual" : w.source;
+    const earned = workoutXp(w.kind, w.amount, xpSource, streaks(db, userId, w.date).current);
+    const xp = grantCapped(db, userId, w.date, earned, "training", DAILY_TRAINING_XP_CAP, `${w.amount} ${w.kind}`);
+    return { id: Number(res.lastInsertRowid), flagged, xp, capped: xp < earned };
   });
 }
 
@@ -197,7 +315,7 @@ function notify(db: DB, userId: number, kind: string, body: string, fightId: num
 
 function saveFight(
   db: DB,
-  f: { mode: "duel" | "rumble"; seed: number; venue: VenueId; title: string; fighters: ChampSnapshot[]; standings: Standing[]; rumbleId?: number; payouts?: number[] },
+  f: { mode: "duel" | "rumble"; seed: number; venue: VenueId; title: string; fighters: ChampSnapshot[]; standings: Standing[]; rumbleId?: number; date: string },
 ): number {
   const res = db
     .prepare("INSERT INTO fights (mode, seed, created_at, venue, title, fighters, standings, rumble_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -206,13 +324,14 @@ function saveFight(
   for (const s of f.standings) {
     const fighter = f.fighters.find((x) => x.id === s.fighterId)!;
     if (fighter.userId === null) continue;
-    db.prepare("INSERT INTO fight_entries (fight_id, user_id, place, field_size, won, payout_cents, rating_before) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    const xp = grantCapped(db, fighter.userId, f.date, fightXp(f.mode, s.place, f.fighters.length), "fight", DAILY_FIGHT_XP_CAP, `${f.mode} #${s.place}`);
+    db.prepare("INSERT INTO fight_entries (fight_id, user_id, place, field_size, won, xp, rating_before) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
       fightId,
       fighter.userId,
       s.place,
       f.fighters.length,
       s.place === 1 ? 1 : 0,
-      f.payouts?.[s.place - 1] ?? 0,
+      xp,
       fighter.rating,
     );
   }
@@ -258,7 +377,7 @@ export function startDuel(db: DB, userId: number, today: string): { fightId: num
   const avg = fighters.reduce((s, f) => s + f.rating, 0) / fighters.length;
   const venue = divisionFor(Math.round(avg)).venue;
   return tx(db, () => {
-    const fightId = saveFight(db, { mode: "duel", seed, venue, title: `Duel · ring of ${fighters.length}`, fighters, standings: result.standings });
+    const fightId = saveFight(db, { mode: "duel", seed, venue, title: `Duel · ring of ${fighters.length}`, fighters, standings: result.standings, date: today });
     for (const p of players) {
       const place = result.standings.find((s) => s.fighterId === p.id)!.place;
       notify(
@@ -273,21 +392,20 @@ export function startDuel(db: DB, userId: number, today: string): { fightId: num
   });
 }
 
-export function getFight(db: DB, fightId: number) {
+export function getFight(db: DB, fightId: number, viewerId: number) {
   const f = db.prepare("SELECT * FROM fights WHERE id = ?").get(fightId) as
     | { id: number; mode: string; seed: number; created_at: string; venue: string; title: string; fighters: string; standings: string; rumble_id: number | null }
     | undefined;
   if (!f) throw new HttpError(404, "Fight not found");
   const fighters = (JSON.parse(f.fighters) as ChampSnapshot[]).map(({ userId: _u, ...rest }) => rest); // don't expose account ids
-  let entryCents = 0;
-  if (f.rumble_id) entryCents = (db.prepare("SELECT entry_cents FROM rumbles WHERE id = ?").get(f.rumble_id) as { entry_cents: number }).entry_cents;
-  return { id: f.id, mode: f.mode, seed: f.seed, createdAt: f.created_at, venue: f.venue, title: f.title, fighters, standings: JSON.parse(f.standings), entryCents };
+  const mine = db.prepare("SELECT xp FROM fight_entries WHERE fight_id = ? AND user_id = ?").get(fightId, viewerId) as { xp: number } | undefined;
+  return { id: f.id, mode: f.mode, seed: f.seed, createdAt: f.created_at, venue: f.venue, title: f.title, fighters, standings: JSON.parse(f.standings), myXp: mine?.xp ?? null };
 }
 
 export function myFights(db: DB, userId: number, limit = 30) {
   return db
     .prepare(
-      `SELECT f.id, f.mode, f.title, f.created_at AS createdAt, e.place, e.field_size AS fieldSize, e.won, e.payout_cents AS payoutCents
+      `SELECT f.id, f.mode, f.title, f.created_at AS createdAt, e.place, e.field_size AS fieldSize, e.won, e.xp
        FROM fight_entries e JOIN fights f ON f.id = e.fight_id WHERE e.user_id = ? ORDER BY f.created_at DESC LIMIT ?`,
     )
     .all(userId, limit);
@@ -315,8 +433,8 @@ export function liveFeed(db: DB, limit = 12) {
 
 const RUMBLE_FIELD = 30;
 const RUMBLE_SCHEDULE = {
-  daily: { hourUtc: 19, entryCents: 500 },
-  weekly: { hourUtc: 18, entryCents: 2500, weekday: 0 }, // Sunday
+  daily: { hourUtc: 19 },
+  weekly: { hourUtc: 18, weekday: 0 }, // Sunday
 };
 
 function seedHash(seed: number): string {
@@ -340,8 +458,8 @@ export function ensureSchedule(db: DB, now = new Date()): void {
     const seed = randomInt(1, 2 ** 31 - 1);
     tx(db, () => {
       const res = db
-        .prepare("INSERT OR IGNORE INTO rumbles (kind, starts_at, field_size, entry_cents, seed_hash, status) VALUES (?, ?, ?, ?, ?, 'open')")
-        .run(kind, nextStart(kind, now), RUMBLE_FIELD, RUMBLE_SCHEDULE[kind].entryCents, seedHash(seed));
+        .prepare("INSERT OR IGNORE INTO rumbles (kind, starts_at, field_size, seed_hash, status) VALUES (?, ?, ?, ?, 'open')")
+        .run(kind, nextStart(kind, now), RUMBLE_FIELD, seedHash(seed));
       if (res.changes) db.prepare("INSERT INTO rumble_secrets (rumble_id, seed) VALUES (?, ?)").run(res.lastInsertRowid, seed);
     });
   }
@@ -350,7 +468,7 @@ export function ensureSchedule(db: DB, now = new Date()): void {
 export function listRumbles(db: DB, userId: number | null) {
   const rows = db
     .prepare(
-      `SELECT r.id, r.kind, r.starts_at AS startsAt, r.field_size AS fieldSize, r.entry_cents AS entryCents, r.seed_hash AS seedHash,
+      `SELECT r.id, r.kind, r.starts_at AS startsAt, r.field_size AS fieldSize, r.seed_hash AS seedHash,
               r.seed, r.status, r.fight_id AS fightId,
               (SELECT COUNT(*) FROM rumble_entries x WHERE x.rumble_id = r.id) AS entered,
               EXISTS (SELECT 1 FROM rumble_entries x WHERE x.rumble_id = r.id AND x.user_id = ?) AS joined
@@ -384,11 +502,10 @@ export function leaveRumble(db: DB, userId: number, rumbleId: number): void {
 // Rumbles are free while real-money pools are not live, so house champions near the
 // entrants' level fill empty places (spec R4: never in cash Rumbles).
 export function runDueRumbles(db: DB, now = new Date()): number[] {
-  const due = db.prepare("SELECT id, kind, field_size, entry_cents FROM rumbles WHERE status = 'open' AND starts_at <= ?").all(now.toISOString()) as {
+  const due = db.prepare("SELECT id, kind, field_size FROM rumbles WHERE status = 'open' AND starts_at <= ?").all(now.toISOString()) as {
     id: number;
     kind: "daily" | "weekly";
     field_size: number;
-    entry_cents: number;
   }[];
   const ran: number[] = [];
   for (const r of due) {
@@ -408,7 +525,6 @@ export function runDueRumbles(db: DB, now = new Date()): number[] {
       .map(houseChamp);
     const fighters = [...entrants, ...house];
     const result = simulateRumble(fighters, seed);
-    const payouts = computePayouts(fighters.length, r.entry_cents);
     const title = r.kind === "weekly" ? "Weekly Grand Rumble" : "Daily Rumble";
     tx(db, () => {
       const fightId = saveFight(db, {
@@ -419,12 +535,13 @@ export function runDueRumbles(db: DB, now = new Date()): number[] {
         fighters,
         standings: result.standings,
         rumbleId: r.id,
-        payouts,
+        date: today,
       });
       db.prepare("UPDATE rumbles SET status = 'done', seed = ?, fight_id = ? WHERE id = ?").run(seed, fightId, r.id);
       for (const e of entrants) {
         const s = result.standings.find((x) => x.fighterId === e.id)!;
-        notify(db, e.userId!, "rumble", `${title} is over: your champ ${e.name} finished #${s.place} of ${fighters.length}. Watch the replay.`, fightId);
+        const xp = (db.prepare("SELECT xp FROM fight_entries WHERE fight_id = ? AND user_id = ?").get(fightId, e.userId) as { xp: number }).xp;
+        notify(db, e.userId!, "rumble", `${title} is over: your champ ${e.name} finished #${s.place} of ${fighters.length} (+${xp} XP). Watch the replay.`, fightId);
       }
     });
     ran.push(r.id);

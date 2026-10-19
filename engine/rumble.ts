@@ -36,7 +36,15 @@ export interface RumbleFighter {
   id: string;
   name: string;
   stats: FighterStats;
+  // Signature moves unlocked with XP upgrades (engine/progression.ts). Fighters
+  // without moves fight exactly as before, so stored fights replay unchanged.
+  moves?: readonly string[];
 }
+
+const HAYMAKER_CHANCE = 0.08;
+const HAYMAKER_MULTIPLIER = 2.2;
+const SLIP_DODGE_BONUS = 0.08;
+const RING_IQ_BONUS = 0.25;
 
 interface State {
   x: number;
@@ -57,6 +65,8 @@ interface State {
   eliminatedBy: number | null;
   damageDealt: number;
   eliminations: number;
+  usedChin: boolean;
+  usedWind: boolean;
 }
 
 export interface Observation {
@@ -92,9 +102,10 @@ export const defaultPolicy: Policy = {
 
 export interface RumbleEvent {
   tick: number;
-  type: "ko" | "crit";
-  fighter: string; // the attacker for crits, the eliminated fighter for KOs
+  type: "ko" | "crit" | "move";
+  fighter: string; // the attacker for crits and moves, the eliminated fighter for KOs
   by?: string;
+  move?: string;
 }
 
 export interface Standing {
@@ -181,6 +192,8 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
       eliminatedBy: null,
       damageDealt: 0,
       eliminations: 0,
+      usedChin: false,
+      usedWind: false,
     };
   });
 
@@ -198,6 +211,7 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
     : undefined;
 
   const order = Array.from({ length: n }, (_, i) => i);
+  const moveSets = fighters.map((f) => new Set(f.moves ?? []));
   let aliveCount = n;
   let tick = 0;
 
@@ -218,9 +232,17 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
       if (!me.alive) continue;
       const stats = fighters[i].stats;
       const skill = stats.technique / 100;
+      const moves = moveSets[i];
+      const ringSkill = moves.has("ringIq") ? Math.min(1, skill + RING_IQ_BONUS) : skill;
+
+      if (moves.has("secondWind") && !me.usedWind && me.energy < me.maxEnergy * 0.15) {
+        me.usedWind = true;
+        me.energy = me.maxEnergy * 0.6;
+        events.push({ tick, type: "move", fighter: fighters[i].id, move: "secondWind" });
+      }
 
       if (me.target < 0 || !states[me.target].alive || tick % RETARGET_EVERY === i % RETARGET_EVERY) {
-        me.target = pickTarget(states, fighters, i, skill, rng);
+        me.target = pickTarget(states, fighters, i, ringSkill, rng);
       }
       const them = states[me.target];
       const dx = them.x - me.x;
@@ -235,7 +257,7 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
       }
 
       // Skilled fighters slip out of pile-ons instead of trading with three people at once.
-      if (attackers[i] >= 2 && rng() < 0.6 * skill) {
+      if (attackers[i] >= 2 && rng() < 0.6 * ringSkill) {
         retreat(me, states, i, stats);
         regen(me, stats, 0.4);
         continue;
@@ -278,12 +300,17 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
       me.recovery = punch.recovery;
 
       const theirStats = fighters[me.target].stats;
-      const dodgeChance = Math.max(0.02, 0.05 + 0.2 * (theirStats.speed / 100) - 0.1 * skill);
+      const slip = moveSets[me.target].has("slip") ? SLIP_DODGE_BONUS : 0;
+      const dodgeChance = Math.max(0.02, 0.05 + 0.2 * (theirStats.speed / 100) - 0.1 * skill + slip);
       if (rng() < dodgeChance) continue;
 
       let damage = punch.damage * DAMAGE_SCALE * (0.3 + 1.2 * (stats.power / 100));
       const crit = rng() < 0.03 + 0.08 * skill;
       if (crit) damage *= 1.5;
+      if (moves.has("haymaker") && rng() < HAYMAKER_CHANCE) {
+        damage *= HAYMAKER_MULTIPLIER;
+        events.push({ tick, type: "move", fighter: fighters[i].id, move: "haymaker" });
+      }
       if (them.guardUntil >= tick) damage *= 1 - (0.4 + 0.4 * (theirStats.defense / 100));
       if (me.energy < me.maxEnergy * 0.15) damage *= 0.6;
 
@@ -293,6 +320,12 @@ export function simulateRumble(fighters: RumbleFighter[], seed: number, opts: Ru
       them.z += (dz / (dist || 1)) * punch.knockback;
       me.damageDealt += damage;
       if (crit) events.push({ tick, type: "crit", fighter: fighters[i].id });
+
+      if (them.hp <= 0 && moveSets[me.target].has("ironChin") && !them.usedChin) {
+        them.usedChin = true;
+        them.hp = 1;
+        events.push({ tick, type: "move", fighter: fighters[me.target].id, move: "ironChin" });
+      }
 
       if (them.hp <= 0) {
         them.hp = 0;

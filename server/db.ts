@@ -23,8 +23,20 @@ CREATE TABLE IF NOT EXISTS champs (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   color TEXT NOT NULL,
-  equipped TEXT NOT NULL DEFAULT '{}'
+  equipped TEXT NOT NULL DEFAULT '{}',
+  upgrades TEXT NOT NULL DEFAULT '{}'   -- upgrade level per area, bought with XP
 );
+-- Every XP change: + for training and fights, - for upgrades. Balance = SUM(amount).
+CREATE TABLE IF NOT EXISTS xp_ledger (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  time TEXT NOT NULL,
+  date TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  reason TEXT NOT NULL,           -- 'training' | 'fight' | 'upgrade'
+  detail TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS xp_ledger_user ON xp_ledger(user_id, date);
 CREATE TABLE IF NOT EXISTS activity (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   date TEXT NOT NULL,
@@ -64,7 +76,7 @@ CREATE TABLE IF NOT EXISTS fight_entries (
   place INTEGER NOT NULL,
   field_size INTEGER NOT NULL,
   won INTEGER NOT NULL,
-  payout_cents INTEGER NOT NULL DEFAULT 0,
+  xp INTEGER NOT NULL DEFAULT 0,
   rating_before INTEGER NOT NULL,
   PRIMARY KEY (fight_id, user_id)
 );
@@ -74,7 +86,6 @@ CREATE TABLE IF NOT EXISTS rumbles (
   kind TEXT NOT NULL,             -- 'daily' | 'weekly'
   starts_at TEXT NOT NULL,
   field_size INTEGER NOT NULL,
-  entry_cents INTEGER NOT NULL,
   seed_hash TEXT NOT NULL,        -- published before entries close
   seed INTEGER,                   -- revealed after the Rumble runs
   status TEXT NOT NULL,           -- 'open' | 'done'

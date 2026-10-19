@@ -112,6 +112,8 @@ test("duels: a ring of 10 with real players' champions, everyone sees the result
   assert.equal(mine[0].fieldSize, 10);
   assert.equal((await api("/api/me", { token: a })).data.record.duels, 1);
   assert.ok((await api("/api/me", { token: a })).data.unlocked.includes("sweatband"));
+  assert.ok(mine[0].xp > 0, "fights give XP");
+  assert.equal(fight.myXp, (await api("/api/fights/mine", { token: a })).data[0].xp, "the fight reports the viewer's XP");
 });
 
 test("rumbles: enter, run at start time, verifiable seed, results and notifications", async () => {
@@ -136,6 +138,52 @@ test("rumbles: enter, run at start time, verifiable seed, results and notificati
   const note = (await api("/api/notifications", { token: t2 })).data[0];
   assert.match(note.body, /Daily Rumble is over/);
   assert.ok((await api("/api/rumbles", { token: t1 })).data.some((r: { kind: string; status: string }) => r.kind === "daily" && r.status === "open"), "next one scheduled");
+});
+
+test("xp: training earns XP with camera and streak bonuses, capped per day", async () => {
+  const { token } = await signup("Earner");
+  const cam = await api("/api/workouts", { token, body: { kind: "pushups", amount: 40, source: "camera", durationSec: 100 } });
+  assert.equal(cam.data.xp, 110, "40 push-ups x2 XP x1.25 camera x1.1 (1-day streak)");
+  const manual = await api("/api/workouts", { token, body: { kind: "pushups", amount: 40, source: "manual" } });
+  assert.equal(manual.data.xp, 44, "manual entries earn half");
+  const fast = await api("/api/workouts", { token, body: { kind: "squats", amount: 100, source: "camera", durationSec: 20 } });
+  assert.equal(fast.data.flagged, "camera-too-fast");
+  assert.equal(fast.data.xp, 83, "suspicious camera sets earn like manual entries");
+  for (let i = 0; i < 6; i++) await api("/api/workouts", { token, body: { kind: "steps", amount: 20000, source: "tracker" } });
+  const me = (await api("/api/me", { token })).data;
+  assert.equal(me.xp.trainingToday, me.xp.trainingCap, "daily training XP cap");
+  assert.equal(me.xp.balance, me.xp.trainingCap);
+  const capped = await api("/api/workouts", { token, body: { kind: "pushups", amount: 10, source: "camera", durationSec: 30 } });
+  assert.equal(capped.data.xp, 0);
+  assert.equal(capped.data.capped, true);
+});
+
+test("upgrades: spend XP to level up, stats rise, moves unlock at level 5", async () => {
+  const user = await signup("Upgrader");
+  const token = train(user, { steps: 9000, pushups: 40, squats: 50, active_minutes: 35, run_km: 2 });
+  const userId = (db.prepare("SELECT user_id FROM champs WHERE name = ?").get("Upgrader") as { user_id: number }).user_id;
+  db.prepare("INSERT INTO xp_ledger (user_id, time, date, amount, reason, detail) VALUES (?, ?, ?, ?, 'training', 'test grant')").run(userId, new Date().toISOString(), utcDate(), 1200);
+
+  const before = (await api("/api/me", { token })).data.champ;
+  assert.equal(before.condition.value, 1, "trained every day: full condition");
+  const first = await api("/api/upgrades", { token, body: { area: "power" } });
+  assert.deepEqual(first.data, { area: "power", level: 1, cost: 100 });
+  const after = (await api("/api/me", { token })).data;
+  assert.equal(after.champ.stats.power, before.stats.power + 3);
+  assert.equal(after.champ.baseStats.power, before.baseStats.power, "base stats still come from training");
+  assert.equal(after.xp.balance, 1100);
+
+  for (let i = 0; i < 4; i++) assert.equal((await api("/api/upgrades", { token, body: { area: "power" } })).status, 200);
+  const maxed = (await api("/api/me", { token })).data;
+  assert.deepEqual(maxed.champ.moves, ["haymaker"], "level 5 unlocks the signature move");
+  assert.equal(maxed.champ.upgrades.power, 5);
+  assert.equal((await api("/api/upgrades", { token, body: { area: "power" } })).status, 409, "not enough XP left");
+  assert.equal((await api("/api/upgrades", { token, body: { area: "luck" } })).status, 400);
+
+  const duel = await api("/api/duels", { token, body: {} });
+  const fight = (await api(`/api/fights/${duel.data.fightId}`, { token })).data;
+  assert.deepEqual(fight.fighters[0].moves, ["haymaker"], "moves are stored with the fight for exact replays");
+  assert.deepEqual(simulateRumble(fight.fighters, fight.seed).standings, fight.standings);
 });
 
 test("champ: rename, colour, and only unlocked gear can be equipped", async () => {

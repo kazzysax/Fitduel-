@@ -8,7 +8,8 @@ import { tx, type DB } from "./db.ts";
 import {
   activityRows,
   addDays,
-  champSnapshot,
+  buyUpgrade,
+  champDetails,
   clientToday,
   enterRumble,
   ensureSchedule,
@@ -25,7 +26,10 @@ import {
   startDuel,
   streaks,
   unlockedFor,
+  xpHistory,
+  xpSummary,
 } from "./game.ts";
+import { overallRating } from "../engine/stats.ts";
 import { createHandler, HttpError, Router, type Ctx } from "./http.ts";
 import { divisionFor } from "../engine/league.ts";
 
@@ -111,14 +115,30 @@ export function createApp(db: DB, opts: AppOptions = {}): Server {
       onboarded: number;
       created_at: string;
     };
-    const champ = champSnapshot(db, userId, t);
+    const champ = champDetails(db, userId, t);
+    const rating = overallRating(champ.stats);
     const unread = (db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read = 0").get(userId) as { n: number }).n;
     return {
       email: user.email,
       createdAt: user.created_at,
       goals: JSON.parse(user.goals),
       onboarded: !!user.onboarded,
-      champ: { id: champ.id, name: champ.name, color: champ.color, equipped: champ.equipped, stats: champ.stats, rating: champ.rating, division: divisionFor(champ.rating).name },
+      champ: {
+        id: `u${userId}`,
+        name: champ.name,
+        color: champ.color,
+        equipped: champ.equipped,
+        stats: champ.stats,
+        baseStats: champ.baseStats,
+        rating,
+        baseRating: overallRating(champ.baseStats),
+        division: divisionFor(rating).name,
+        upgrades: champ.upgrades,
+        condition: champ.condition,
+        moves: champ.moves,
+        unlockedMoves: champ.unlockedMoves,
+      },
+      xp: xpSummary(db, userId, t),
       streak: streaks(db, userId, t),
       record: recordFor(db, userId),
       unlocked: unlockedFor(db, userId, t),
@@ -162,6 +182,17 @@ export function createApp(db: DB, opts: AppOptions = {}): Server {
 
   router.on("GET", "/api/gear", () => GEAR);
 
+  // ───── XP and upgrades ─────
+  router.on("POST", "/api/upgrades", (ctx) => {
+    const userId = requireUser(ctx);
+    return buyUpgrade(db, userId, (ctx.body as { area?: unknown } | undefined)?.area, today(ctx));
+  });
+
+  router.on("GET", "/api/xp", (ctx) => {
+    const userId = requireUser(ctx);
+    return { ...xpSummary(db, userId, today(ctx)), history: xpHistory(db, userId) };
+  });
+
   // ───── Training ─────
   router.on("GET", "/api/activity", (ctx) => {
     const userId = requireUser(ctx);
@@ -193,8 +224,8 @@ export function createApp(db: DB, opts: AppOptions = {}): Server {
   router.on("GET", "/api/fights/mine", (ctx) => myFights(db, requireUser(ctx)));
 
   router.on("GET", "/api/fights/:id", (ctx) => {
-    requireUser(ctx);
-    return getFight(db, Number(ctx.params.id));
+    const userId = requireUser(ctx);
+    return getFight(db, Number(ctx.params.id), userId);
   });
 
   router.on("GET", "/api/live", (ctx) => {

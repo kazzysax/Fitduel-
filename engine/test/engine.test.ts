@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { makeFakeField } from "../fakeData.ts";
-import { computePayouts, paidPlaces } from "../payout.ts";
 import { simulateRumble, type RumbleFighter } from "../rumble.ts";
 import { computeStats, type ActivityDay } from "../stats.ts";
 
@@ -65,7 +64,7 @@ test("rumble: training decides the outcome far more than luck", () => {
   for (let seed = 1; seed <= runs; seed++) {
     const field = [strong, ...makeFakeField(seed, 29, today)];
     const place = simulateRumble(field, seed).standings.find((s) => s.fighterId === "strong")!.place;
-    if (place <= paidPlaces(30)) paid++;
+    if (place <= 6) paid++;
   }
   assert.ok(paid / runs >= 0.6, `fit fighter paid in ${paid}/${runs} Rumbles`);
 });
@@ -75,26 +74,11 @@ test("rumble: an untrained fighter almost never gets paid", () => {
   let paid = 0;
   for (let seed = 1; seed <= 60; seed++) {
     const field = [couch, ...makeFakeField(seed, 29, today)];
-    if (simulateRumble(field, seed).standings.find((s) => s.fighterId === "couch")!.place <= paidPlaces(30)) paid++;
+    if (simulateRumble(field, seed).standings.find((s) => s.fighterId === "couch")!.place <= 6) paid++;
   }
   assert.ok(paid <= 2, `untrained fighter paid in ${paid}/60 Rumbles`);
 });
 
-test("payout: whole pool is paid out to the top 20%, best place first", () => {
-  for (const size of [8, 10, 17, 30, 100, 1000]) {
-    const entry = 500;
-    const payouts = computePayouts(size, entry);
-    assert.equal(payouts.length, paidPlaces(size));
-    assert.equal(
-      payouts.reduce((a, b) => a + b, 0),
-      size * entry,
-      `size ${size}: no platform fee`,
-    );
-    for (let i = 1; i < payouts.length; i++) assert.ok(payouts[i] <= payouts[i - 1], `size ${size}: descending`);
-    for (const p of payouts) assert.ok(p >= 1.5 * entry, `size ${size}: every paid place wins >= 1.5x entry`);
-  }
-});
 
-test("payout: 30-fighter $5 Rumble matches the spec table", () => {
-  assert.deepEqual(computePayouts(30, 500), [5295, 3040, 2197, 1746, 1460, 1262]);
-});
+
+
