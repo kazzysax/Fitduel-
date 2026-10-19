@@ -15,7 +15,6 @@ COPY engine ./engine
 COPY server ./server
 COPY --from=web /app/web/dist ./web/dist
 RUN mkdir -p /data && chown node:node /data
-VOLUME /data
 EXPOSE 8787
 USER node
 CMD ["node", "--disable-warning=ExperimentalWarning", "server/main.ts"]
