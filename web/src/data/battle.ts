@@ -71,7 +71,7 @@ export const VENUES: Record<VenueId, Venue> = {
   },
 };
 
-export type Fighter = FakePlayer & { equipped?: Equipped };
+export type Fighter = FakePlayer & { equipped?: Equipped; moves?: string[] };
 
 export interface Fight {
   id: number;
@@ -81,7 +81,7 @@ export interface Fight {
   venue: VenueId;
   title: string;
   fighters: Fighter[];
-  entryCents: number;
+  myXp: number | null; // XP you earned from this fight, if your champ was in it
 }
 
 export interface LiveFight {
@@ -100,7 +100,6 @@ export interface Rumble {
   title: string;
   startsAt: string;
   fieldSize: number;
-  entryCents: number;
   seedHash: string;
   seed: number | null;
   status: "open" | "done";

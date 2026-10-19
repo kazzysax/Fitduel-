@@ -4,9 +4,9 @@
 
 See [`SPEC.md`](SPEC.md) for the full product spec.
 
-| Today | Workouts | Battle | Duel | Champ |
+| Today | Workouts | Battle | Duel | Upgrades |
 |---|---|---|---|---|
-| ![Today](docs/screenshots/phone-today.png) | ![Workouts](docs/screenshots/phone-train.png) | ![Battle](docs/screenshots/phone-battleground.png) | ![Duel](docs/screenshots/phone-duel.png) | ![Champ](docs/screenshots/phone-champ.png) |
+| ![Today](docs/screenshots/phone-today.png) | ![Workouts](docs/screenshots/phone-train.png) | ![Battle](docs/screenshots/phone-battleground.png) | ![Duel](docs/screenshots/phone-duel.png) | ![Upgrades](docs/screenshots/phone-upgrades.png) |
 
 ![Desktop](docs/screenshots/desktop-today.png)
 
@@ -24,6 +24,16 @@ See [`SPEC.md`](SPEC.md) for the full product spec.
 
 It installs as a phone app (PWA): add it to your home screen, and it opens full-screen with an offline shell.
 
+## XP and upgrades (no real money)
+
+- **Training earns XP:**
+  - Rates: 2 per push-up, 1.5 per squat, 10 per 1,000 steps, 25 per km run, 2 per active minute.
+  - Camera-verified sets earn ×1.25, manual entries ×0.5.
+  - Streak bonus up to +50%; 600 XP a day max.
+- **Spend XP** on 10 upgrade levels in Power, Speed, Stamina, Defense and Technique (+3 to the stat per level). Level 5 unlocks a signature move: Haymaker, Slip, Second Wind, Iron Chin or Ring IQ.
+- **Condition** (active days in the last two weeks) scales upgrades from 40% to 100%. Moves need 70%+, so champions only stay strong while their owners keep training.
+- **Fights pay a little XP** (a Duel win is 30, a Rumble win 150, capped at 150 a day). There are no entry fees, prizes or payouts, so FitDuel can launch worldwide without gambling licences.
+
 ## How it works
 
 ```
@@ -40,10 +50,10 @@ It installs as a phone app (PWA): add it to your home screen, and it opens full-
 - **Rumbles** are scheduled automatically: daily at 19:00 UTC and weekly on Sunday at 18:00 UTC.
   - The random seed is drawn when a Rumble is created, and only its SHA-256 fingerprint is shown.
   - After the fight the seed is revealed, so anyone can check that it matches and re-run the fight.
-  - While cash pools aren't live, Rumbles are free and house champions fill empty places.
+  - Rumbles are free; house champions fill empty places.
 - **Anti-cheat:**
   - Per-session and per-day limits reject impossible numbers.
-  - Manual entries, and camera sets that are too fast or have no duration, are flagged. Flagged sets still count for free play but would be excluded from cash events.
+  - Manual entries, and camera sets that are too fast or have no duration, are flagged and earn half XP.
   - Login and sign-up attempts are rate-limited.
 - **Security:**
   - Passwords are hashed with scrypt.
@@ -53,7 +63,7 @@ It installs as a phone app (PWA): add it to your home screen, and it opens full-
 
 | Code | Purpose |
 |---|---|
-| `engine/` | Shared rules: stats from training, rep counting, fight simulation, payouts, divisions and gear |
+| `engine/` | Shared rules: stats from training, XP and upgrades, rep counting, fight simulation with signature moves, divisions and gear |
 | `server/` | API, database, matchmaking, Rumble scheduler (no framework, Node built-ins only) |
 | `web/` | The app: React, Three.js (React Three Fiber), MediaPipe Pose |
 
@@ -95,7 +105,6 @@ Run it behind HTTPS: browsers only allow the camera, and only install the app, o
 
 | Item | What's needed |
 |---|---|
-| **Real-money pools** | Legal review per country, a licensed payments and payouts provider, ID checks (KYC), location checks. Prize amounts are shown as "practice" until then |
 | **Fitness tracker sync** (Fitbit, Garmin, Strava, Apple Health) | Developer accounts and API keys, or an aggregator such as Terra. Apple Health needs a native wrapper app |
 | **Push notifications to the lock screen** | Notification keys (VAPID) and an HTTPS deployment. In-app notifications work now |
 | **Final art** | Your UI references for the screens, and a Blender character kit to replace the placeholder fighters (same parts and pivots) |

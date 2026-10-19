@@ -1,14 +1,13 @@
 import { useMemo } from "react";
 
 import type { FakePlayer } from "../../../engine/fakeData.ts";
-import { computePayouts } from "../../../engine/payout.ts";
+import { fightXp, MOVES, type Move } from "../../../engine/progression.ts";
 import { Act, type Frames, type RumbleResult } from "../../../engine/rumble.ts";
 import { StatBars } from "../components/StatBars.tsx";
 import { formatClock, frameIndex, type Playback } from "../replay.ts";
 
 export type ArenaMode = "duel" | "rumble" | "spectate";
 
-export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 function aliveCount(frames: Frames, tick: number): number {
   let alive = 0;
@@ -20,13 +19,12 @@ export function TopBar(props: {
   title: string;
   venueName: string;
   mode: ArenaMode;
-  entryCents: number;
   frames: Frames;
   tick: number;
   onExit: () => void;
   onToggleRing: () => void;
 }) {
-  const { title, venueName, mode, entryCents, frames, tick, onExit, onToggleRing } = props;
+  const { title, venueName, mode, frames, tick, onExit, onToggleRing } = props;
   return (
     <header className="topbar panel">
       <button className="btn small back" onClick={onExit} aria-label="Back to Battleground">
@@ -37,13 +35,7 @@ export function TopBar(props: {
         <span>{venueName}</span>
       </div>
       <div className="chips">
-        {mode === "rumble" && (
-          <>
-            <span className="chip">{money(entryCents)} entry</span>
-            <span className="chip">Pool {money(entryCents * frames.fighters)}</span>
-          </>
-        )}
-        {mode !== "rumble" && <span className="chip">{mode === "duel" ? "Free Duel" : "Spectating"}</span>}
+        <span className="chip">{mode === "rumble" ? "Rumble" : mode === "duel" ? "Duel" : "Spectating"}</span>
         <span className="chip chip-live">
           {aliveCount(frames, tick)}/{frames.fighters} left
         </span>
@@ -138,14 +130,26 @@ export function DuelBars({ field, frames, tick, maxHp }: { field: FakePlayer[]; 
   );
 }
 
+// Knockouts and signature moves, newest first.
 export function Feed({ field, result, tick }: { field: FakePlayer[]; result: RumbleResult; tick: number }) {
   const names = useMemo(() => new Map(field.map((p) => [p.id, p.name])), [field]);
-  const recent = result.events.filter((e) => e.type === "ko" && e.tick <= tick).slice(-4).reverse();
+  const recent = result.events.filter((e) => (e.type === "ko" || e.type === "move") && e.tick <= tick).slice(-4).reverse();
   return (
     <div className="feed">
       {recent.map((e) => (
-        <div key={`${e.tick}-${e.fighter}`} className={`feed-item ${e.fighter === "you" || e.by === "you" ? "feed-you" : ""}`}>
-          <b>{names.get(e.by!)}</b> knocked out <b>{names.get(e.fighter)}</b>
+        <div
+          key={`${e.tick}-${e.type}-${e.fighter}`}
+          className={`feed-item ${e.type === "move" ? "feed-move" : ""} ${e.fighter === "you" || e.by === "you" ? "feed-you" : ""}`}
+        >
+          {e.type === "ko" ? (
+            <>
+              <b>{names.get(e.by!)}</b> knocked out <b>{names.get(e.fighter)}</b>
+            </>
+          ) : (
+            <>
+              <b>{names.get(e.fighter)}</b> used <b className="move-name">{MOVES[e.move as Move]?.name ?? e.move}</b>
+            </>
+          )}
           <span className="mono">{formatClock(e.tick)}</span>
         </div>
       ))}
@@ -214,20 +218,21 @@ export function Results(props: {
   field: FakePlayer[];
   youIndex: number | null;
   result: RumbleResult;
-  entryCents: number;
+  myXp: number | null;
   onReplay: () => void;
   onExit: () => void;
   onNext?: () => void;
   nextLabel?: string;
 }) {
-  const { mode, field, youIndex, result, entryCents, onReplay, onExit, onNext, nextLabel } = props;
+  const { mode, field, youIndex, result, myXp, onReplay, onExit, onNext, nextLabel } = props;
   const byId = new Map(field.map((p) => [p.id, p]));
-  const payouts = mode === "rumble" ? computePayouts(field.length, entryCents) : [];
   const winner = byId.get(result.standings[0].fighterId)!;
   const you = youIndex === null ? null : field[youIndex];
   const mine = you ? result.standings.find((s) => s.fighterId === you.id)! : null;
-  const myPayout = mine ? payouts[mine.place - 1] : undefined;
   const youWon = mine?.place === 1;
+  const xpMode = mode === "rumble" ? "rumble" : "duel";
+  const fullXp = mine ? fightXp(xpMode, mine.place, field.length) : 0;
+  const shown = Math.max(3, mode === "rumble" ? Math.floor(field.length * 0.2) : 3);
 
   return (
     <div className="overlay">
@@ -238,7 +243,7 @@ export function Results(props: {
           <small> {result.lastStanding ? "by knockout" : "on points"}</small>
         </h2>
         {mine && (
-          <div className={`your-result ${youWon || myPayout ? "paid" : ""}`}>
+          <div className={`your-result ${youWon || mine.place <= 3 ? "paid" : ""}`}>
             <div>
               <div className="label">Your champ</div>
               <div className="big">
@@ -251,14 +256,15 @@ export function Results(props: {
               <span>{mine.damageDealt.toFixed(0)} damage</span>
               <span>{mine.eliminations} KOs</span>
             </div>
-            {mode === "rumble" && (
+            {myXp !== null && (
               <div className="payout">
-                <div className="label">Payout</div>
-                <div className="big">{myPayout ? money(myPayout) : "—"}</div>
+                <div className="label">XP earned</div>
+                <div className="big xp">+{myXp}</div>
               </div>
             )}
           </div>
         )}
+        {mine && myXp !== null && myXp < fullXp && <p className="note">Daily fight XP limit reached: training is the main way to earn XP.</p>}
         <table className="standings">
           <thead>
             <tr>
@@ -267,11 +273,11 @@ export function Results(props: {
               <th>OVR</th>
               <th>Damage</th>
               <th>KOs</th>
-              {mode === "rumble" && <th>Payout</th>}
+              <th>XP</th>
             </tr>
           </thead>
           <tbody>
-            {result.standings.slice(0, Math.max(payouts.length, Math.min(3, field.length))).map((s) => {
+            {result.standings.slice(0, Math.min(shown, field.length)).map((s) => {
               const p = byId.get(s.fighterId)!;
               return (
                 <tr key={s.fighterId} className={you && s.fighterId === you.id ? "me" : ""}>
@@ -283,18 +289,13 @@ export function Results(props: {
                   <td className="mono">{p.rating}</td>
                   <td className="mono">{s.damageDealt.toFixed(0)}</td>
                   <td className="mono">{s.eliminations}</td>
-                  {mode === "rumble" && <td className="mono">{payouts[s.place - 1] ? money(payouts[s.place - 1]) : ""}</td>}
+                  <td className="mono">+{fightXp(xpMode, s.place, field.length)}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {mode === "rumble" && (
-          <p className="note">
-            Pool {money(entryCents * field.length)} · 100% paid to the top {payouts.length} · no platform fee · prototype, no real money
-          </p>
-        )}
-        {mine && !youWon && <p className="note">Train more to raise your champ's stats, then come back for a rematch.</p>}
+        {mine && !youWon && <p className="note">Train to earn XP, upgrade your champ, then come back for a rematch.</p>}
         <div className="modal-actions">
           <button className="btn" onClick={onReplay}>
             Watch again

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useWatchFight } from "../App.tsx";
 import { Toast } from "../components/ui.tsx";
 import { useAsync } from "../components/useAsync.ts";
+import { fightXp } from "../../../engine/progression.ts";
 import {
   countdown,
   divisionFor,
@@ -16,15 +17,14 @@ import {
   VENUES,
   type Rumble,
 } from "../data/battle.ts";
-import { champOf, refresh, useProfile } from "../data/store.ts";
+import { currentChamp, refresh, useProfile } from "../data/store.ts";
 import type { GoOptions } from "../nav.ts";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 export function Battleground({ opts }: { opts: GoOptions }) {
   const profile = useProfile();
   const watch = useWatchFight();
-  const champ = useMemo(() => champOf(profile), [profile]);
+  const champ = useMemo(() => currentChamp(profile), [profile]);
   const division = divisionFor(champ.rating);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
@@ -107,7 +107,7 @@ export function Battleground({ opts }: { opts: GoOptions }) {
       <section className="card duel-cta">
         <div className="cta-glow" aria-hidden />
         <div>
-          <div className="label">Ring of 10 · Free</div>
+          <div className="label">Ring of 10 · Win +30 XP</div>
           <h2>Join a Duel</h2>
           <p className="note">
             Your champ enters a ring with nine other players' champions at a similar level ({division.name} division). Last one standing wins. Fights last about a
@@ -168,8 +168,8 @@ export function Battleground({ opts }: { opts: GoOptions }) {
                   </b>
                 </div>
                 <div>
-                  <span>Entry</span>
-                  <b className="mono">Free</b>
+                  <span>Winner</span>
+                  <b className="mono">+{fightXp("rumble", 1, r.fieldSize)} XP</b>
                 </div>
                 <div>
                   <span>Starts</span>
@@ -177,7 +177,8 @@ export function Battleground({ opts }: { opts: GoOptions }) {
                 </div>
               </div>
               <p className="note">
-                Your champ fights automatically at the start time and you'll get a notification. Practice Rumble: cash pools ({money(r.entryCents)} entry) come later.
+                Free to enter. Your champ fights automatically at the start time and you'll get a notification. Top {Math.floor(r.fieldSize * 0.2)} earn +
+                {fightXp("rumble", 2, r.fieldSize)} XP, everyone else +{fightXp("rumble", r.fieldSize, r.fieldSize)} XP.
               </p>
               <details className="fair">
                 <summary>Fairness check</summary>
@@ -243,7 +244,9 @@ export function Battleground({ opts }: { opts: GoOptions }) {
                   <button className="link-row" onClick={() => watch(f.id)}>
                     {f.title}
                   </button>
-                  <span className="mono muted">{timeAgo(f.createdAt, now)}</span>
+                  <span className="mono muted">
+                    {f.xp > 0 && <span className="xp-tag">+{f.xp} XP</span>} {timeAgo(f.createdAt, now)}
+                  </span>
                 </li>
               ))}
             </ul>

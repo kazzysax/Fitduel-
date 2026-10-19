@@ -1,4 +1,4 @@
-# FitDuel — Product Spec (draft v0.3)
+# FitDuel — Product Spec (draft v0.4)
 
 > **A fitness app first.** Track your workouts, steps and progress every day. Your training builds your AI champion. In the **Battleground** you watch AI champions fight in Duels and Rumbles, join in, and see your own champ fight.
 
@@ -17,12 +17,13 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 | Fighter AI | Game AI that runs on our servers. Fights are deterministic and replayable from a seed (no language model controls moves) |
 | Duels | **Fully automatic and in the background.** Players get a result plus an automatic replay scene |
 | Format | **Duels** (a ring of 10 champions at a similar level, last one standing) and **Rumbles** (many fighters in one ring, last one standing, like a WWE Royal Rumble) |
-| Entry | Players choose which Rumble to enter and pay an entry stake into the pool |
+| Progression | **Train → earn XP → spend XP on upgrades.** No real money anywhere: XP can't be bought (section 3.1) |
+| Entry | Duels and Rumbles are free to enter |
 | Schedule | **Daily** and **weekly** Rumbles |
-| Payout | The top finishers share the pool by score |
-| Platform fee | **None.** 100% of stakes go to the pool. Revenue comes from cosmetics and the FitDuel Pass (R2) |
+| Rewards | XP, trophies, gear and leaderboard ranks (section 4.3) |
+| Revenue | Cosmetics and the optional FitDuel Pass (R2). Never selling XP or power |
 | Matchmaking | **Divisions** by fighter level, so beginners face beginners |
-| Launch | **Worldwide** (see section 8 for how cash pools work country by country) |
+| Launch | **Worldwide** from day one: no cash prizes means no gambling licences (section 8) |
 
 ---
 
@@ -51,7 +52,7 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
   - **Join:** put your champ in the Duel queue; you're matched with a champion of similar level in your division.
   - **Challenge a friend:** send a Duel link.
   - Duels run fast (about 30–60 seconds) and can be watched straight away.
-- **Rumbles:** the scheduled daily and weekly many-fighter events (section 4), with pools.
+- **Rumbles:** the scheduled daily and weekly many-fighter events (section 4), with XP rewards.
 - **My champ's fights:** notifications when your champ's fight starts or ends ("Your champ is in the ring now — watch"), then a replay with highlights.
 - **Spectating:** anyone can watch any public fight, follow top champions, and see division leaderboards.
 - **Arenas by division:** Garage Gym (Rookie), Street Rooftop (Contender), City Arena (Pro), Brick Colosseum (Champion), Grand Arena (weekly finals). Arenas change only how fights look, never the result.
@@ -71,8 +72,57 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 - **Daily caps.** Anything above a plausible daily amount earns nothing. This is a safety rule and an anti-cheat rule.
 - **Recent training counts most.** Stats use the last 28 days, with older days counting less (10-day half-life).
 - **Consistency beats one big session.** Technique rewards training often.
-- **Camera-verified reps count more** than reps typed in by hand (typed reps may not count at all in cash Rumbles).
+- **Camera-verified reps count more** than reps typed in by hand (×1.25 XP vs ×0.5 XP).
 - **Stats lock at entry close.** Training after a Rumble's entry cutoff counts toward the next one.
+
+---
+
+### 3.1 XP and upgrades
+Training earns **XP**. XP is spent on **upgrades** for your champion. It is the only currency and can't be bought.
+
+```
+final stat = base stat (last 28 days of training)
+           + upgrade levels × 3 × condition
+```
+
+- **Earning XP** (`engine/progression.ts`):
+
+  | Activity | XP |
+  |---|---|
+  | 1 push-up | 2 |
+  | 1 squat | 1.5 |
+  | 1,000 steps | 10 |
+  | 1 km run | 25 |
+  | 1 active minute | 2 |
+
+  - Camera-verified sets earn ×1.25, tracker data ×1, manual entries ×0.5. Suspicious camera sets earn like manual entries.
+  - Streak bonus: +10% per day of your current streak, up to +50%.
+  - Daily cap: 600 training XP.
+- **Fights give a little XP:**
+
+  | Fight | Win | Top places | Everyone else |
+  |---|---|---|---|
+  | Duel (ring of 10) | 30 | 15 (top 3) | 5 |
+  | Rumble | 150 | 60 (top 20%) | 20 |
+
+  Daily cap on fight XP: 150, so training stays the main source.
+- **Upgrades:** five areas (Power, Speed, Stamina, Defense, Technique).
+  - Each has 10 levels, each worth +3 to that stat.
+  - Costs rise: 100 XP for level 1, about 1,000 XP to reach level 5 in one area.
+- **Condition:** active days in the last 14, from 40% (none) to 100% (8+). Upgrades are permanent, but their bonus is scaled by condition, so a champion only fights at full strength while its owner keeps training.
+- **Signature moves** unlock at level 5 of an area, and only work at 70%+ condition:
+
+  | Area | Move | Effect |
+  |---|---|---|
+  | Power | Haymaker | 8% of punches deal ×2.2 damage |
+  | Speed | Slip | +8% dodge chance |
+  | Stamina | Second Wind | Once a fight, energy refills to 60% when nearly empty |
+  | Defense | Iron Chin | Once a fight, survives a knockout blow with 1 HP |
+  | Technique | Ring IQ | Smarter target choice and escaping pile-ons |
+
+- **Fairness:** matchmaking uses the final rating, so upgraded champions meet upgraded champions.
+  - Every XP gain and spend is recorded in a ledger.
+  - Moves are stored with each fight, so replays stay exact.
 
 ---
 
@@ -100,10 +150,9 @@ score = survival_points + damage_points + elimination_bonus
 
 Exact weights get tuned in testing.
 
-### 4.3 Payout (no platform fee)
-- **100% of the entry stakes** go to the pool.
-- **Top 20%** of finishers are paid on a published payout table (see R3).
-- Payouts are held until anti-cheat review passes (section 6).
+### 4.3 Rewards
+- No entry fees and no cash prizes.
+- Placing well earns **XP** (section 3.1) and gear unlocks (e.g. the Rumble crown for a Rumble win), plus leaderboard ranks.
 
 ### 4.4 Divisions
 - Fighters are grouped by **overall rating** into divisions (e.g. Rookie, Contender, Pro, Champion).
@@ -155,12 +204,12 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
   - Aura effect at high rating.
 - **Camera:** an automatic director that follows the action, cuts to knockouts, and keeps the player's own fighter in view.
 
-## 6. Anti-cheat (critical, because money is at stake)
+## 6. Anti-cheat (XP and rankings must be earned honestly)
 - **Camera reps:** pose detection checks full range of motion, pace and body position. Only rep counts plus a signed check summary are sent; no video is uploaded.
 - **Steps and cardio:** cross-check heart rate and GPS where available, and flag patterns that don't look human (for example, phone shaking).
 - **Limits:** daily caps plus flags for sudden jumps.
-- **Payout holds:** winnings are held for a short review window; flagged accounts are reviewed before payout.
-- **One fighter per verified person** (identity check before any cash payout).
+- **XP protection:** daily XP caps, camera bonus only for clean sets, manual entries at half XP.
+- **Review:** flagged accounts can be reviewed and their XP corrected via the ledger.
 
 ---
 
@@ -183,7 +232,7 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
                       └───── │ Simulation        │  deterministic, pure CPU,
             results/replays  │ workers (N)       │  scale by adding workers
                              └──────────────────┘
- Payments: licensed payment / payout provider with ID checks and location rules
+ Payments (cosmetics and the Pass only): app store or card payments; no payouts
 ```
 
 - **Frontend:** React or Next.js, built as a PWA, with Three.js (React Three Fiber) for 3D. Pose detection in the browser with MediaPipe or TensorFlow.js.
@@ -198,15 +247,10 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 
 ---
 
-## 8. Worldwide launch and real-money pools
-- The app and **free Rumbles** (points, badges, prizes) launch **worldwide**.
-- **Cash Rumbles** turn on **country by country** (and state by state in the US), only where paid skill contests are allowed. This needs:
-  - a gaming or skill-contest legal review,
-  - age 18+ checks,
-  - ID checks before payouts,
-  - location blocking,
-  - responsible-play limits (deposit and entry caps, self-exclusion).
-- Low randomness (section 4.5) supports the case that FitDuel is a skill contest, not gambling.
+## 8. Worldwide launch
+- There are no cash prizes or entry fees, so FitDuel is a fitness app with a game, not a gambling product.
+- No gaming licences, ID checks or location blocking are needed to launch worldwide.
+- Normal app requirements still apply: privacy policy, age rating, data protection (GDPR/CCPA) and health-data rules for tracker integrations.
 
 ---
 
@@ -219,7 +263,7 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 | **1. MVP core** ✅ (built) | Accounts and onboarding, server-side training log with anti-cheat limits, Duels between real players' champions, scheduled daily and weekly free Rumbles with commit-reveal seeds, leaderboard, notifications, unlockable gear, installable app (PWA), Docker deployment. Remaining for MVP: tracker sync, push notifications, password reset email, final UI from design references |
 | **1. MVP (free)** | Fitness app shell (Today, Train, Progress, Battleground, Champ tabs), camera push-up and squat counter, step sync, accounts, free Duels and daily free Rumbles, divisions, replays |
 | **2. Beta** | Weekly Rumbles with heats and finals, anti-cheat pipeline, notifications, social (friends, clubs) |
-| **3. Cash pools** | Payments and payouts, ID checks, location blocking, legal sign-off, rolled out per region |
+| **1.5 XP economy** ✅ | XP from training and fights, upgrades in five areas, condition, signature moves, no real money |
 | **4. Scale** | Trained AI fighters, tournaments, regional infrastructure |
 
 ---
@@ -228,38 +272,21 @@ Blender (model parts, pivot rig, animate) → export glTF/GLB → compress (mesh
 
 ### R1. Activity data on the web
 - **MVP:** camera-counted push-ups and squats, which work in any browser, plus wearable sync through one aggregator (e.g. Terra), covering Fitbit, Garmin, Strava, Oura and more.
-- **Cash Rumbles:** only camera-verified exercise and wearable data count; hand-typed numbers count only in free Rumbles.
+- **Manual entries** earn half XP; camera-verified and tracker data earn full XP.
 - **Later:** a thin native wrapper (Capacitor) to read Apple Health and Google Health Connect, published to the app stores.
 
 ### R2. Revenue with no platform fee
 - **Cosmetics shop:** fighter parts, gloves, entrances, victory poses, KO effects. The modular brick style makes this a large catalog. Cosmetics are **looks only and never affect stats**, so money can't buy wins.
 - **FitDuel Pass** (about $4.99/month): deeper training insights, unlimited replay saves, extra free Rumbles, monthly exclusive cosmetics.
-- **Sponsored Rumbles:** brands (sportswear, gyms, drinks) add prize money to a pool, so players get a bigger pool and FitDuel earns sponsor fees.
-- **Payment processing fees** are paid by FitDuel out of the revenue above, so the "100% to the pool" promise holds.
+- **Sponsored Rumbles:** brands (sportswear, gyms, drinks) sponsor events with branded arenas and exclusive gear. Sponsors pay FitDuel, never players.
+- **Never sold:** XP, upgrades or anything that changes how a champion fights.
 
-### R3. Entry tiers and payout table
-- **Entry tiers:**
-
-  | Rumble | Entry tiers |
-  |---|---|
-  | Daily | Free · $1 · $5 · $20 |
-  | Weekly | Free · $5 · $25 · $100 |
-
-- **Paid places:** the top **20%** of each Rumble, and every paid place wins **at least 1.5× the entry**.
-- **Example payout table**, for a 30-fighter Rumble (6 paid places):
-
-  | Place | 1st | 2nd | 3rd | 4th | 5th | 6th |
-  |---|---|---|---|---|---|---|
-  | Share of pool | 35.3% | 20.3% | 14.6% | 11.6% | 9.7% | 8.4% |
-  | $5 entry ($150 pool) | $52.95 | $30.40 | $21.97 | $17.46 | $14.60 | $12.62 |
-
-- **Payout formula:** for any field size, share ∝ 1 / place^0.8 across the paid places, normalized to 100%. If that leaves a place under 1.5× entry, it is raised to 1.5× and the difference is taken proportionally from the places above. The table is published before entry. Implemented in `engine/payout.ts`.
-- **Free Rumbles:** pay out points, badges and cosmetics instead of cash.
+### R3. ~~Entry tiers and payout table~~
+Removed in v0.4: no real money. Rewards are XP (section 3.1).
 
 ### R4. Rumble size and unfilled Rumbles
 - **Ring size:** minimum **8** and maximum **30** fighters per ring.
-- **If a Rumble doesn't fill:** first merge it with the next-closest division if the ratings are close. If it still has fewer than 8 fighters, **refund everyone in full**.
-- **Bots:** they can fill **free** Rumbles so they always run, but **never cash Rumbles**. Cash pools are always player against player.
+- **If a Rumble doesn't fill:** house champions near the entrants' level fill the empty places, so every Rumble runs.
 
 ### R5. Art and production
 - **Phase 0 (I build):** placeholder blocky fighters generated in code from simple boxes, so the game and replays can be built and tested right away.

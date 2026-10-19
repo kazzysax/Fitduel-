@@ -64,7 +64,7 @@ function Main({ profile }: { profile: Profile }) {
         fighters: f.fighters,
         seed: f.seed,
         youIndex: youIndex < 0 ? null : youIndex,
-        entryCents: f.entryCents,
+        myXp: f.myXp,
         onExit: () => {
           setArena(null);
           refresh();
@@ -115,7 +115,7 @@ function Main({ profile }: { profile: Profile }) {
           {tab === "train" && <Train opts={opts} />}
           {tab === "progress" && <Progress />}
           {tab === "battleground" && <Battleground opts={opts} />}
-          {tab === "champ" && <ChampPage go={go} />}
+          {tab === "champ" && <ChampPage go={go} opts={opts} />}
         </main>
         {arena && <ArenaView key={`${arena.title}-${arena.seed}`} {...arena} />}
       </div>

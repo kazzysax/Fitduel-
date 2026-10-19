@@ -1,4 +1,4 @@
-import { Bell, Dumbbell, Flame, Footprints, Plus, Swords, Timer, Trophy, Zap } from "lucide-react";
+import { Bell, Dumbbell, Flame, Footprints, Plus, Sparkles, Swords, Timer, Trophy, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useWatchFight } from "../App.tsx";
@@ -7,7 +7,7 @@ import { STAT_INFO } from "../components/StatBars.tsx";
 import { BigNumber, Card, CardLabel, compact, Gauge, IconButton, RulerBar, StatPill } from "../components/ui.tsx";
 import { useAsync } from "../components/useAsync.ts";
 import { countdown, divisionFor, fetchNotifications, fetchRumbles, timeAgo } from "../data/battle.ts";
-import { champOf, dayLog, markNotificationsRead, today, useProfile, type DayLog, type Profile } from "../data/store.ts";
+import { champOf, currentChamp, dayLog, markNotificationsRead, today, useProfile, type DayLog, type Profile } from "../data/store.ts";
 import type { Go } from "../nav.ts";
 import { WorkoutList } from "./Train.tsx";
 
@@ -66,12 +66,13 @@ export function Today({ go }: { go: Go }) {
   const profile = useProfile();
   const [showNotes, setShowNotes] = useState(false);
   const day = dayLog(profile, today());
-  const champ = useMemo(() => champOf(profile), [profile]);
+  const champ = useMemo(() => currentChamp(profile), [profile]);
+  const trained = useMemo(() => champOf(profile), [profile]);
   const before = useMemo(() => {
     const withoutToday: Profile = { ...profile, log: { ...profile.log, [today()]: { steps: 0, pushups: 0, squats: 0, activeMinutes: 0, runKm: 0 } } };
     return champOf(withoutToday);
   }, [profile]);
-  const gains = STAT_INFO.map((s) => ({ ...s, delta: champ.stats[s.key] - before.stats[s.key] })).filter((g) => g.delta > 0);
+  const gains = STAT_INFO.map((s) => ({ ...s, delta: trained.stats[s.key] - before.stats[s.key] })).filter((g) => g.delta > 0);
   const division = divisionFor(champ.rating);
   const rumbles = useAsync(fetchRumbles);
   const next = rumbles.data?.find((r) => r.status === "open" && r.kind === "daily");
@@ -120,6 +121,23 @@ export function Today({ go }: { go: Go }) {
             Daily reps
           </CardLabel>
           <RulerBar value={reps} max={profile.goals.reps} unit="reps" />
+        </Card>
+
+        <Card className="span-2 xp-card" onClick={() => go("champ", { upgrades: true })} role="button" tabIndex={0}>
+          <CardLabel icon={Sparkles} action={<span className="link">Spend on upgrades →</span>}>
+            Experience
+          </CardLabel>
+          <div className="xp-row">
+            <BigNumber value={profile.xp.balance.toLocaleString()} unit="XP" />
+            <div className="xp-today">
+              <span>
+                <b>+{profile.xp.trainingToday}</b> / {profile.xp.trainingCap} today
+              </span>
+              <div className="meter" aria-hidden>
+                <div style={{ width: `${Math.min(100, (profile.xp.trainingToday / profile.xp.trainingCap) * 100)}%` }} />
+              </div>
+            </div>
+          </div>
         </Card>
 
         <Card className="gauge-card">

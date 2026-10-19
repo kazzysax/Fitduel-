@@ -23,7 +23,7 @@ export interface ArenaProps {
   fighters: FakePlayer[];
   seed: number;
   youIndex: number | null;
-  entryCents?: number;
+  myXp?: number | null;
   startAt?: number; // seconds into the fight, for joining a live fight late
   onExit: () => void;
   onFinish?: (result: RumbleResult) => void;
@@ -68,7 +68,7 @@ function CameraRig({ frames, playback, follow, duel }: { frames: Frames; playbac
 }
 
 export function ArenaView(props: ArenaProps) {
-  const { mode, title, venue, fighters, seed, youIndex, entryCents = 0, startAt = 0, onExit, onFinish, onNext, nextLabel } = props;
+  const { mode, title, venue, fighters, seed, youIndex, myXp = null, startAt = 0, onExit, onFinish, onNext, nextLabel } = props;
   const duel = fighters.length === 2;
   const [showRing, setShowRing] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
@@ -151,7 +151,6 @@ export function ArenaView(props: ArenaProps) {
         title={title}
         venueName={venue.name}
         mode={mode}
-        entryCents={entryCents}
         frames={frames}
         tick={tick}
         onExit={onExit}
@@ -192,7 +191,7 @@ export function ArenaView(props: ArenaProps) {
           field={fighters}
           youIndex={youIndex}
           result={result}
-          entryCents={entryCents}
+          myXp={myXp}
           onReplay={() => {
             playback.t = 0;
             playback.playing = true;

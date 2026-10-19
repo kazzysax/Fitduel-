@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { Equipped } from "../../../engine/league.ts";
+import type { Area, Move, Upgrades } from "../../../engine/progression.ts";
 import { computeStats, overallRating, WINDOW_DAYS, type ActivityDay, type FighterStats } from "../../../engine/stats.ts";
 import { api, getToken, localDate, setToken, setUnauthorizedHandler } from "./api.ts";
 
@@ -28,7 +29,7 @@ export interface FightSummary {
   place: number;
   fieldSize: number;
   won: number;
-  payoutCents: number;
+  xp: number;
 }
 
 export interface Goals {
@@ -42,12 +43,37 @@ interface Me {
   createdAt: string;
   goals: Goals;
   onboarded: boolean;
-  champ: { id: string; name: string; color: string; equipped: Equipped; stats: FighterStats; rating: number; division: string };
+  champ: {
+    id: string;
+    name: string;
+    color: string;
+    equipped: Equipped;
+    stats: FighterStats;
+    baseStats: FighterStats;
+    rating: number;
+    baseRating: number;
+    division: string;
+    upgrades: Upgrades;
+    condition: { value: number; activeDays: number };
+    moves: Move[];
+    unlockedMoves: Move[];
+  };
+  xp: XpSummary;
   streak: { current: number; best: number };
-  record: { duels: number; duelWins: number; rumbles: number; rumbleWins: number; bestRumblePlace: number | null; practiceWinningsCents: number };
+  record: { duels: number; duelWins: number; rumbles: number; rumbleWins: number; bestRumblePlace: number | null; fightXp: number };
   unlocked: string[];
   unread: number;
 }
+
+export interface XpSummary {
+  balance: number;
+  trainingToday: number;
+  trainingCap: number;
+  fightToday: number;
+  fightCap: number;
+}
+
+export type ServerChamp = Me["champ"];
 
 export interface Profile {
   email: string;
@@ -55,6 +81,8 @@ export interface Profile {
   champName: string;
   color: string;
   equipped: Equipped;
+  champ: ServerChamp; // the champion as it fights: training + upgrades x condition
+  xp: XpSummary;
   goals: Goals;
   onboarded: boolean;
   streak: { current: number; best: number };
@@ -99,6 +127,8 @@ export async function refresh(): Promise<void> {
         champName: me.champ.name,
         color: me.champ.color,
         equipped: me.champ.equipped,
+        champ: me.champ,
+        xp: me.xp,
         goals: me.goals,
         onboarded: me.onboarded,
         streak: me.streak,
@@ -164,15 +194,25 @@ export async function deleteAccount(password: string): Promise<void> {
   set({ status: "signedOut" });
 }
 
-export async function logWorkout(kind: Workout["kind"], amount: number, source: Workout["source"], durationSec?: number): Promise<{ flagged: string | null }> {
-  const res = await api<{ flagged: string | null }>("/workouts", { body: { kind, amount, source, durationSec } });
-  await refresh();
-  return res;
+export async function logWorkout(
+  kind: Workout["kind"],
+  amount: number,
+  source: Workout["source"],
+  durationSec?: number,
+): Promise<{ flagged: string | null; xp: number; capped: boolean }> {
+  // The caller refreshes, so it can show the XP result alongside the new stats.
+  return api<{ flagged: string | null; xp: number; capped: boolean }>("/workouts", { body: { kind, amount, source, durationSec } });
 }
 
 export async function updateChamp(changes: { name?: string; color?: string; equipped?: Equipped }): Promise<void> {
   await api("/champ", { method: "PUT", body: changes });
   await refresh();
+}
+
+export async function buyUpgrade(area: Area): Promise<{ level: number; cost: number }> {
+  const res = await api<{ level: number; cost: number }>("/upgrades", { body: { area } });
+  await refresh();
+  return res;
 }
 
 export async function updateMe(changes: { goals?: Goals; onboarded?: boolean }): Promise<void> {
@@ -219,7 +259,13 @@ export interface Champ {
   rating: number;
 }
 
-// Same formula as the server, so charts of past days match what the server computes.
+// The champion as it fights right now (from the server).
+export function currentChamp(p: Profile): Champ {
+  return { id: p.champId, name: p.champName, color: p.color, equipped: p.equipped, stats: p.champ.stats, rating: p.champ.rating };
+}
+
+// Training-only stats for any day, same formula as the server (used for charts and
+// for showing what a workout added). Upgrades are not included here.
 export function champOf(p: Profile, asOf = today()): Champ {
   const stats = computeStats(history(p, asOf), asOf);
   return { id: p.champId, name: p.champName, color: p.color, equipped: p.equipped, stats, rating: overallRating(stats) };

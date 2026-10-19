@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Exercise } from "../../../engine/reps.ts";
 import { STAT_INFO } from "../components/StatBars.tsx";
 import { BigNumber, Card, CardLabel, DotMatrix, IconButton, ProgressCircle, Toast } from "../components/ui.tsx";
-import { champOf, dayLog, daysAgo, isActiveDay, logWorkout, today, useProfile, type Champ, type DayLog, type Profile, type Workout } from "../data/store.ts";
+import { champOf, dayLog, daysAgo, isActiveDay, logWorkout, refresh, today, useProfile, type Champ, type DayLog, type Profile, type Workout } from "../data/store.ts";
 import type { GoOptions } from "../nav.ts";
 import { PoseCounter } from "../train/PoseCounter.tsx";
 
@@ -104,7 +104,8 @@ export function Train({ opts }: { opts: GoOptions }) {
     setBusy(true);
     setError(null);
     try {
-      await logWorkout(k, n, source, durationSec);
+      lastXp.current = await logWorkout(k, n, source, durationSec);
+      await refresh();
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -114,13 +115,16 @@ export function Train({ opts }: { opts: GoOptions }) {
     }
   };
 
-  // Show the stat change once the store has the new workout.
+  // Show XP and the stat change once the store has the new workout.
   const lastId = useRef(profile.workouts[0]?.id);
+  const lastXp = useRef<{ xp: number; capped: boolean } | null>(null);
   useEffect(() => {
     const w = profile.workouts[0];
     if (w && w.id !== lastId.current) {
       lastId.current = w.id;
-      setSaved(`Saved ${describe(w)}. ${gainsBetween(beforeRef.current, champ)}`);
+      const xp = lastXp.current;
+      const xpText = xp ? (xp.xp > 0 ? `+${xp.xp} XP${xp.capped ? " (daily XP limit reached)" : ""}.` : "Daily XP limit reached.") : "";
+      setSaved(`Saved ${describe(w)}. ${xpText} ${gainsBetween(beforeRef.current, champ)}`);
     }
   }, [profile, champ]);
 
@@ -176,7 +180,7 @@ export function Train({ opts }: { opts: GoOptions }) {
               <Camera size={17} className="muted" aria-hidden />
             </div>
             <b>Push-ups</b>
-            <span>{lastSessionLabel(profile, "pushups")} · Power</span>
+            <span>{lastSessionLabel(profile, "pushups")} · 2 XP a rep</span>
           </button>
           <button className="card exercise-card" onClick={() => setActive("squat")}>
             <div className="ex-top">
@@ -184,7 +188,7 @@ export function Train({ opts }: { opts: GoOptions }) {
               <Camera size={17} className="muted" aria-hidden />
             </div>
             <b>Squats</b>
-            <span>{lastSessionLabel(profile, "squats")} · Defense</span>
+            <span>{lastSessionLabel(profile, "squats")} · 1.5 XP a rep</span>
           </button>
         </div>
       )}

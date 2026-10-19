@@ -16,6 +16,7 @@ export interface GoOptions {
   exercise?: Exercise; // Train: open the camera counter for this exercise
   manual?: boolean; // Train: jump to manual logging
   duel?: boolean; // Battleground: start a Duel straight away
+  upgrades?: boolean; // Champ: jump to the upgrades panel
 }
 
 export type Go = (tab: Tab, opts?: GoOptions) => void;

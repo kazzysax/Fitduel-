@@ -1,27 +1,30 @@
 import { Check, Lock, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { GEAR, type GearSlot } from "../../../engine/league.ts";
 import { ChampViewer } from "../components/ChampViewer.tsx";
 import { StatBars } from "../components/StatBars.tsx";
 import { Toast } from "../components/ui.tsx";
 import { DIVISIONS, divisionFor, VENUES } from "../data/battle.ts";
-import { champOf, deleteAccount, logOut, updateChamp, updateMe, useProfile } from "../data/store.ts";
-import type { Go } from "../nav.ts";
+import { currentChamp, deleteAccount, logOut, updateChamp, updateMe, useProfile } from "../data/store.ts";
+import { Upgrades } from "../components/Upgrades.tsx";
+import type { Go, GoOptions } from "../nav.ts";
 
 export const CHAMP_COLORS = ["#ffd60a", "#e63946", "#2a9d8f", "#3a86ff", "#8338ec", "#ff006e", "#06d6a0", "#fb5607", "#f1f1f1", "#30364a"];
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-
-export function ChampPage({ go }: { go: Go }) {
+export function ChampPage({ go, opts }: { go: Go; opts: GoOptions }) {
   const profile = useProfile();
-  const champ = useMemo(() => champOf(profile), [profile]);
+  const champ = useMemo(() => currentChamp(profile), [profile]);
   const division = divisionFor(champ.rating);
   const next = DIVISIONS.find((d) => d.min > champ.rating);
   const [name, setName] = useState(profile.champName);
   const [goals, setGoals] = useState(profile.goals);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const rec = profile.record;
+
+  useEffect(() => {
+    if (opts.upgrades) setTimeout(() => document.getElementById("upgrades")?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, [opts]);
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setMsg(null);
@@ -76,13 +79,19 @@ export function ChampPage({ go }: { go: Go }) {
           ) : (
             <p className="note">Top division reached. Keep training to stay here: stats fade without training.</p>
           )}
-          <StatBars stats={champ.stats} showSource />
-          <p className="note">Stats come from your last 28 days of training. Recent days count most; training often raises Technique.</p>
+          <StatBars stats={champ.stats} compare={profile.champ.baseStats} showSource />
+          <p className="note">
+            Base stats come from your last 28 days of training. Green numbers are your upgrades, bought with XP.
+          </p>
           <button className="btn btn-primary" onClick={() => go("train")}>
             Train to power up
           </button>
         </section>
       </div>
+
+      <section className="card" id="upgrades">
+        <Upgrades profile={profile} />
+      </section>
 
       <section className="card">
         <div className="card-head">
@@ -153,8 +162,8 @@ export function ChampPage({ go }: { go: Go }) {
               <b className="mono">{rec.bestRumblePlace ? `#${rec.bestRumblePlace}` : "—"}</b>
             </div>
             <div>
-              <span>Practice winnings</span>
-              <b className="mono">{money(rec.practiceWinningsCents)}</b>
+              <span>XP from fights</span>
+              <b className="mono">{rec.fightXp.toLocaleString()}</b>
             </div>
             <div>
               <span>Best streak</span>
