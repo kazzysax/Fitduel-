@@ -242,8 +242,8 @@ export function Results(props: {
             <div>
               <div className="label">Your champ</div>
               <div className="big">
-                {mode === "duel" ? (youWon ? "WIN" : "LOSS") : mine.place}
-                {mode !== "duel" && <small>/{field.length}</small>}
+                {youWon ? "WIN" : `#${mine.place}`}
+                {!youWon && <small>/{field.length}</small>}
               </div>
             </div>
             <div className="mini-stats mono">

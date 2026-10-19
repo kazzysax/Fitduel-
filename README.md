@@ -19,7 +19,7 @@ See [`SPEC.md`](SPEC.md) for the full product spec.
 | **Today** | Activity rings for steps, reps and active minutes against your goals. Streak, quick-start buttons, your 3D champ and what today's training added. Notifications (🔔) when your champ fights |
 | **Train** | **Camera push-up and squat counter** (pose detection on the device; video never leaves the phone). Log steps, runs and active time. Workout history |
 | **Progress** | 7/14/28-day charts for steps and reps, your champ's rating over time, totals and personal bests |
-| **Battle** | **Duels** against other players' champions at your level. Latest fights to watch. **Daily and weekly Rumbles** you enter; they run automatically. Leaderboard, your fight history |
+| **Battle** | **Duels**: 10-champion ring fights against other players' champions at your level. Latest fights to watch. **Daily and weekly Rumbles** you enter; they run automatically. Leaderboard, your fight history |
 | **Champ** | 3D champion, stats and which exercise builds each, division progress, **Locker Room** gear you unlock, name and colour, goals, account |
 
 It installs as a phone app (PWA): add it to your home screen, and it opens full-screen with an offline shell.
@@ -36,7 +36,7 @@ It installs as a phone app (PWA): add it to your home screen, and it opens full-
 ```
 
 - **Every fight is simulated on the server** with the shared engine (`engine/rumble.ts`). The app gets the fighters and the seed, and replays the exact same fight in 3D. Clients can't fake results.
-- **Duels** match your champion with another player's champion within 8 rating points, with house champions as a fallback. The other player is notified ("X challenged your champ…").
+- **Duels** are rings of 10: your champion plus up to nine other players' champions within 8 rating points, with house champions filling empty places. The other players are notified with their champ's finishing place.
 - **Rumbles** are scheduled automatically: daily at 19:00 UTC and weekly on Sunday at 18:00 UTC.
   - The random seed is drawn when a Rumble is created, and only its SHA-256 fingerprint is shown.
   - After the fight the seed is revealed, so anyone can check that it matches and re-run the fight.

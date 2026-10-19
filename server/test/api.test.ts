@@ -90,25 +90,26 @@ test("anti-cheat: implausible amounts are rejected, suspicious ones flagged", as
   assert.equal((await api("/api/workouts", { token, body: { kind: "pushups", amount: 100, source: "manual" } })).status, 422, "daily limit");
 });
 
-test("duels: players are matched with each other's champions and both see the result", async () => {
+test("duels: a ring of 10 with real players' champions, everyone sees the result", async () => {
   const day = { steps: 9000, pushups: 40, squats: 50, active_minutes: 35, run_km: 2 };
   const a = train(await signup("Alpha"), day);
   const b = train(await signup("Bravo"), day);
   const duel = await api("/api/duels", { token: a, body: {} });
   assert.equal(duel.status, 200, JSON.stringify(duel.data));
   const fight = (await api(`/api/fights/${duel.data.fightId}`, { token: a })).data;
-  assert.deepEqual(
-    fight.fighters.map((f: { name: string }) => f.name),
-    ["Alpha", "Bravo"],
-  );
+  assert.equal(fight.fighters.length, 10, "ring of 10");
+  assert.equal(fight.fighters[0].name, "Alpha", "your champ is in the ring");
+  assert.ok(fight.fighters.some((f: { name: string }) => f.name === "Bravo"), "a real player at the same level is matched");
+  assert.equal(new Set(fight.fighters.map((f: { id: string }) => f.id)).size, 10, "fighter ids are unique");
   assert.equal(fight.fighters[0].userId, undefined, "account ids are not exposed");
   // The replay is exact: re-running the stored fighters and seed gives the stored result.
   assert.deepEqual(simulateRumble(fight.fighters, fight.seed).standings, fight.standings);
 
   const notes = (await api("/api/notifications", { token: b })).data;
-  assert.match(notes[0].body, /Alpha challenged your champ Bravo/);
+  assert.match(notes[0].body, /Alpha started a ring fight with your champ Bravo/);
   const mine = (await api("/api/fights/mine", { token: b })).data;
   assert.equal(mine.length, 1);
+  assert.equal(mine[0].fieldSize, 10);
   assert.equal((await api("/api/me", { token: a })).data.record.duels, 1);
   assert.ok((await api("/api/me", { token: a })).data.unlocked.includes("sweatband"));
 });

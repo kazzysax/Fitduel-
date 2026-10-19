@@ -223,12 +223,13 @@ function houseChamp(p: FakePlayer): ChampSnapshot {
   return { ...p, id: `h-${p.id}-${p.name.replace(/\s/g, "")}`, userId: null, equipped: {} };
 }
 
+export const DUEL_RING_SIZE = 10;
 const DUEL_RATING_WINDOW = 8;
 const DUELS_PER_HOUR = 40;
 
-// Match against another player's champion at a similar level. Their champ fights on
-// its own (that is the point of an AI champion) and they get a notification.
-// House champions fill in when no player is close enough.
+// A Duel is a ring of 10 champions at a similar level: yours plus up to nine other
+// players' champions (they fight on their own, that is the point of an AI champion,
+// and their owners are notified). House champions fill any empty places.
 export function startDuel(db: DB, userId: number, today: string): { fightId: number } {
   const recent = db
     .prepare("SELECT COUNT(*) AS n FROM fight_entries e JOIN fights f ON f.id = e.fight_id WHERE e.user_id = ? AND f.mode = 'duel' AND f.created_at > ?")
@@ -238,30 +239,35 @@ export function startDuel(db: DB, userId: number, today: string): { fightId: num
   const me = champSnapshot(db, userId, today);
   const since = addDays(today, -14);
   const candidates = db
-    .prepare("SELECT DISTINCT user_id FROM activity WHERE date >= ? AND user_id != ? AND user_id IN (SELECT user_id FROM champs) ORDER BY RANDOM() LIMIT 60")
+    .prepare("SELECT DISTINCT user_id FROM activity WHERE date >= ? AND user_id != ? AND user_id IN (SELECT user_id FROM champs) ORDER BY RANDOM() LIMIT 120")
     .all(since, userId) as { user_id: number }[];
-  const close = candidates
+  const players = candidates
     .map((c) => champSnapshot(db, c.user_id, today))
     .filter((c) => Math.abs(c.rating - me.rating) <= DUEL_RATING_WINDOW)
-    .sort((a, b) => Math.abs(a.rating - me.rating) - Math.abs(b.rating - me.rating));
+    .sort((a, b) => Math.abs(a.rating - me.rating) - Math.abs(b.rating - me.rating))
+    .slice(0, DUEL_RING_SIZE - 1);
 
   const seed = randomInt(1, 2 ** 31 - 1);
-  let opponent: ChampSnapshot;
-  if (close.length > 0) {
-    opponent = close[randomInt(0, Math.min(3, close.length))];
-  } else {
-    const pool = makeFakeField(seed, 40, today).sort((a, b) => Math.abs(a.rating - me.rating) - Math.abs(b.rating - me.rating));
-    opponent = houseChamp(pool[randomInt(0, 4)]);
-  }
+  const house = makeFakeField(seed, DUEL_RING_SIZE * 6, today)
+    .sort((a, b) => Math.abs(a.rating - me.rating) - Math.abs(b.rating - me.rating))
+    .slice(0, DUEL_RING_SIZE - 1 - players.length)
+    .map(houseChamp);
 
-  const fighters = [me, opponent];
+  const fighters = [me, ...players, ...house];
   const result = simulateRumble(fighters, seed);
-  const venue = divisionFor(Math.round((me.rating + opponent.rating) / 2)).venue;
+  const avg = fighters.reduce((s, f) => s + f.rating, 0) / fighters.length;
+  const venue = divisionFor(Math.round(avg)).venue;
   return tx(db, () => {
-    const fightId = saveFight(db, { mode: "duel", seed, venue, title: `${me.name} vs ${opponent.name}`, fighters, standings: result.standings });
-    if (opponent.userId !== null) {
-      const won = result.standings[0].fighterId === opponent.id;
-      notify(db, opponent.userId, "duel", `${me.name} challenged your champ ${opponent.name}. ${won ? "Your champ won!" : "Your champ lost. Time to train."}`, fightId);
+    const fightId = saveFight(db, { mode: "duel", seed, venue, title: `Duel · ring of ${fighters.length}`, fighters, standings: result.standings });
+    for (const p of players) {
+      const place = result.standings.find((s) => s.fighterId === p.id)!.place;
+      notify(
+        db,
+        p.userId!,
+        "duel",
+        `${me.name} started a ring fight with your champ ${p.name}. ${place === 1 ? "Your champ won!" : `Your champ finished #${place} of ${fighters.length}.`}`,
+        fightId,
+      );
     }
     return { fightId };
   });
@@ -288,17 +294,20 @@ export function myFights(db: DB, userId: number, limit = 30) {
 }
 
 export function liveFeed(db: DB, limit = 12) {
-  const rows = db.prepare("SELECT id, mode, title, created_at AS createdAt, venue, fighters FROM fights ORDER BY id DESC LIMIT ?").all(limit) as {
+  const rows = db.prepare("SELECT id, mode, title, created_at AS createdAt, venue, fighters, standings FROM fights ORDER BY id DESC LIMIT ?").all(limit) as {
     id: number;
     mode: string;
     title: string;
     createdAt: string;
     venue: string;
     fighters: string;
+    standings: string;
   }[];
-  return rows.map(({ fighters, ...r }) => {
+  return rows.map(({ fighters, standings, ...r }) => {
     const list = JSON.parse(fighters) as ChampSnapshot[];
-    return { ...r, fighters: list.length, top: list.slice(0, 2).map((f) => ({ name: f.name, color: f.color, rating: f.rating })) };
+    const winnerId = (JSON.parse(standings) as Standing[])[0].fighterId;
+    const w = list.find((f) => f.id === winnerId)!;
+    return { ...r, fighters: list.length, winner: { name: w.name, color: w.color, rating: w.rating } };
   });
 }
 

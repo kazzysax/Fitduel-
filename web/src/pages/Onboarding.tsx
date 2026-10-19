@@ -12,7 +12,7 @@ const LEVELS = [
 const STEPS = [
   { title: "Train for real", body: "Count push-ups and squats with your camera, log walks and runs. Your activity is tracked every day." },
   { title: "Build your champion", body: "Push-ups give Power, squats Defense, steps Stamina, running Speed. Training often makes your champ smarter." },
-  { title: "Fight in the Battleground", body: "Your champ fights other players' champions in Duels and Rumbles, even while you sleep. Watch every fight in 3D." },
+  { title: "Fight in the Battleground", body: "Your champ fights other players' champions in 10-champion Duels and big Rumbles, even while you sleep. Watch every fight in 3D." },
 ];
 
 export function Onboarding({ profile }: { profile: Profile }) {

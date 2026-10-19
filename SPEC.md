@@ -16,7 +16,7 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 | Push-up tracking | Counted by the **camera**, with pose detection running in the browser |
 | Fighter AI | Game AI that runs on our servers. Fights are deterministic and replayable from a seed (no language model controls moves) |
 | Duels | **Fully automatic and in the background.** Players get a result plus an automatic replay scene |
-| Format | **Duels** (1 vs 1) and **Rumbles** (many fighters in one ring, last one standing, like a WWE Royal Rumble) |
+| Format | **Duels** (a ring of 10 champions at a similar level, last one standing) and **Rumbles** (many fighters in one ring, last one standing, like a WWE Royal Rumble) |
 | Entry | Players choose which Rumble to enter and pay an entry stake into the pool |
 | Schedule | **Daily** and **weekly** Rumbles |
 | Payout | The top finishers share the pool by score |
@@ -47,7 +47,7 @@ Status: **draft for discussion**. Section 10 lists recommendations waiting for s
 
 ### 2.3 The Battleground
 - **Live now:** a feed of fights happening or just finished. Tap any fight to watch it in the 3D arena.
-- **Duels (1 vs 1):** quick fights between two champions.
+- **Duels (ring of 10):** quick fights between 10 champions at a similar level, last one standing wins. Your champ plus up to nine other players' champions; house champions fill empty places.
   - **Join:** put your champ in the Duel queue; you're matched with a champion of similar level in your division.
   - **Challenge a friend:** send a Duel link.
   - Duels run fast (about 30–60 seconds) and can be watched straight away.

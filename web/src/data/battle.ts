@@ -91,7 +91,7 @@ export interface LiveFight {
   createdAt: string;
   venue: VenueId;
   fighters: number;
-  top: { name: string; color: string; rating: number }[];
+  winner: { name: string; color: string; rating: number };
 }
 
 export interface Rumble {

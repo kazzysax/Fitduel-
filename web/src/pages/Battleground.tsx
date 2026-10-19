@@ -93,7 +93,7 @@ export function Battleground({ opts }: { opts: GoOptions }) {
           <b>{champ.rating}</b>
           <span className="muted">{division.name}</span>
           <span className="wl">
-            {profile.record.duelWins}W {profile.record.duels - profile.record.duelWins}L
+            {profile.record.duelWins} {profile.record.duelWins === 1 ? "win" : "wins"}
           </span>
         </div>
       </header>
@@ -107,10 +107,11 @@ export function Battleground({ opts }: { opts: GoOptions }) {
       <section className="card duel-cta">
         <div className="cta-glow" aria-hidden />
         <div>
-          <div className="label">1 vs 1 · Free</div>
+          <div className="label">Ring of 10 · Free</div>
           <h2>Join a Duel</h2>
           <p className="note">
-            Your champ is matched with another player's champion at a similar level ({division.name} division). Fights last about a minute.
+            Your champ enters a ring with nine other players' champions at a similar level ({division.name} division). Last one standing wins. Fights last about a
+            minute.
           </p>
         </div>
         <button className="btn btn-primary big-btn" onClick={duel} disabled={busy}>
@@ -132,23 +133,11 @@ export function Battleground({ opts }: { opts: GoOptions }) {
             <li key={f.id}>
               <button className="live-item" onClick={() => watch(f.id)}>
                 <span className="vs-names">
-                  {f.mode === "duel" ? (
-                    <>
-                      <span>
-                        <span className="swatch" style={{ background: f.top[0].color }} />
-                        {f.top[0].name} <span className="mono muted">{f.top[0].rating}</span>
-                      </span>
-                      <span className="muted">vs</span>
-                      <span>
-                        <span className="swatch" style={{ background: f.top[1].color }} />
-                        {f.top[1].name} <span className="mono muted">{f.top[1].rating}</span>
-                      </span>
-                    </>
-                  ) : (
-                    <span>
-                      {f.title} · {f.fighters} champions
-                    </span>
-                  )}
+                  <span>
+                    <span className="swatch" style={{ background: f.winner.color }} />
+                    {f.winner.name} <span className="mono muted">{f.winner.rating}</span>
+                  </span>
+                  <span className="muted">won a {f.mode === "duel" ? "Duel" : f.title} · {f.fighters} champions</span>
                 </span>
                 <span className="live-meta">
                   <span className="muted">{VENUES[f.venue].name}</span>
@@ -250,7 +239,7 @@ export function Battleground({ opts }: { opts: GoOptions }) {
             <ul className="fight-list">
               {profile.fights.slice(0, 10).map((f) => (
                 <li key={f.id}>
-                  <span className={`badge ${f.won ? "win" : f.payoutCents > 0 ? "paid" : "loss"}`}>{f.mode === "duel" ? (f.won ? "WIN" : "LOSS") : `#${f.place}`}</span>
+                  <span className={`badge ${f.won ? "win" : f.place <= 3 ? "paid" : "loss"}`}>{f.won ? "WIN" : `#${f.place}/${f.fieldSize}`}</span>
                   <button className="link-row" onClick={() => watch(f.id)}>
                     {f.title}
                   </button>

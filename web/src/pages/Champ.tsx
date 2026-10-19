@@ -139,9 +139,9 @@ export function ChampPage({ go }: { go: Go }) {
           <h2>Fight record</h2>
           <div className="bests">
             <div>
-              <span>Duels</span>
+              <span>Duels won</span>
               <b className="mono">
-                {rec.duelWins}W {rec.duels - rec.duelWins}L
+                {rec.duelWins} of {rec.duels}
               </b>
             </div>
             <div>

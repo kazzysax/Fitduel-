@@ -32,7 +32,7 @@ export interface GearItem {
 export const GEAR: GearItem[] = [
   { id: "sweatband", name: "Rookie sweatband", slot: "head", how: "Fight your first Duel" },
   { id: "flame-gloves", name: "Flame gloves", slot: "gloves", how: "Reach a 7-day streak" },
-  { id: "chrome-torso", name: "Chrome torso", slot: "torso", how: "Win 10 Duels" },
+  { id: "chrome-torso", name: "Chrome torso", slot: "torso", how: "Win 3 Duels" },
   { id: "gold-headgear", name: "Gold headgear", slot: "head", how: "Reach the Champion division" },
   { id: "crown", name: "Rumble crown", slot: "head", how: "Win a Rumble" },
 ];
@@ -51,7 +51,7 @@ export function unlockedGear(p: Progress): string[] {
   const out: string[] = [];
   if (p.duels >= 1) out.push("sweatband");
   if (p.bestStreak >= 7) out.push("flame-gloves");
-  if (p.duelWins >= 10) out.push("chrome-torso");
+  if (p.duelWins >= 3) out.push("chrome-torso");
   if (p.rating >= 75) out.push("gold-headgear");
   if (p.rumbleWins >= 1) out.push("crown");
   return out;
