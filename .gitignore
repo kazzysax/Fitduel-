@@ -3,3 +3,7 @@ dist/
 .env
 web/public/mediapipe/
 /data/
+.vercel
+
+.vercel
+.env*
